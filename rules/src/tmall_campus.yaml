@@ -1,0 +1,97 @@
+# ==============================================================================
+# CampusQuick Single Source of Truth — Ad-Block Rule Set
+# Target: com.tmall.campus.and (天猫校园)
+# Verified on live Android 14 device (cold launch 402/402 ad requests rejected)
+# ==============================================================================
+version: "2.1.0"
+target_package: "com.tmall.campus.and"
+description: "Non-invasive ad-SDK domain blocking rules for Tmall Campus (primary + fallback ad networks + process-scoped isolation)."
+
+# Pure ad-SDK suffixes: safe to block globally without affecting normal apps
+pure_ad_domains:
+  # TopOn / Taku mediation core
+  - anythinktech.com
+  - toponad.com
+  - toponadss.com
+  # BeiZi / AdScope (post-unlock fullscreen interstitial & splash fallback)
+  - beizi.biz
+  - hubcloud.com.cn
+  # Pangolin / GroMore
+  - csjplatform.com
+  - ctobsnssdk.com
+  # Tencent GDT
+  - gdt.qq.com
+  - ugdtimg.com
+  - gdtimg.com
+  # Kuaishou Ad Network (primary + numbered/alias fallbacks)
+  - kuaishouzt.com
+  - kwaizt.com
+  - adkwai.com
+  - adukwai.com
+  # Secondary SDKs & SSP/RTB exchanges
+  - zhangyuyidong.cn
+  - 8ziben.com
+  - adn-plus.com.cn
+  - 1rtb.net
+  - xcultur.com
+  - ndcjl.com
+  - jomoxc.com
+  - ubixioe.com
+  - 66mobi.com
+  - adbiding.cn
+  - sigmob.cn
+
+# Pure ad-SDK keywords: catches numbered fallbacks (e.g. pangolin-sdk-toutiao1.com)
+pure_ad_keywords:
+  - pangolin-sdk-toutiao
+  - pglstatp-toutiao
+
+# Exact pure ad hosts (where parent domain serves normal consumer services)
+pure_ad_exact:
+  - log.zijieapi.com
+  - sdk.e.qq.com
+  - open.e.kuaishou.com
+  - g-api.kwai.com
+  - mobads.baidu.com
+  - mobads-logs.baidu.com
+  - nadvideo2.baidu.com
+  - wn.pos.baidu.com
+  - als.baidu.com
+  - cpro.baidustatic.com
+  - adx.ys7.com
+  - impdsp.meituan.com
+
+# Process-scoped suffixes: ONLY blocked when traffic originates from target_package
+# (used by ClashMeta/sing-box PROCESS-NAME rules and CampusQuick's Per-App VPN)
+process_scoped_domains:
+  - zijieapi.com
+  - snssdk.com
+  - douyin.com
+  - bytedance.com
+  - volces.com
+  - bytescm.com
+  - yximgs.com
+  - etoote.com
+
+# Regression guard: business domains that MUST NEVER be blocked
+business_allowlist:
+  - biz.confong.cn
+  - content.confong.cn
+  - o.alicdn.com
+  - httpdns.alicdn.com
+  - tls-tmall-campus.dingtalk.com
+  - campus-2c-app.cn-hangzhou.log.aliyuncs.com
+  - mtop.taobao.com
+  - api.m.taobao.com
+  - login.tmall.com
+  - static.luckas.cn
+
+# Regression guard: normal consumer domains that MUST NEVER be blocked globally
+consumer_apps_guard:
+  - www.douyin.com
+  - www.kuaishou.com
+  - tx.pull.yximgs.com
+  - www.meituan.com
+  - tnc3-bjlgy.zijieapi.com
+  - www.baidu.com
+  - wx.qq.com

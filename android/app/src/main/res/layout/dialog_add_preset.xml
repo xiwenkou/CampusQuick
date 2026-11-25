@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <EditText
+        android:id="@+id/etPresetName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="快捷入口名称（如：宿舍电费）"
+        android:inputType="text" />
+
+    <EditText
+        android:id="@+id/etPresetPackage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:hint="目标应用包名（如：com.tmall.campus.and）"
+        android:inputType="textNoSuggestions"
+        android:text="com.tmall.campus.and" />
+
+    <EditText
+        android:id="@+id/etPresetUri"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:hint="DeepLink URI（如：tmallcampus://web/open?url=...）"
+        android:inputType="textUri" />
+
+    <CheckBox
+        android:id="@+id/cbRequiresBluetooth"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="拉起前检查蓝牙是否开启" />
+</LinearLayout>

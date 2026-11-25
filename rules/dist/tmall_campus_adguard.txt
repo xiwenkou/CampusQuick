@@ -1,0 +1,43 @@
+! Title: CampusQuick Ad-Block Filter (Tmall Campus)
+! Version: 2.1.0
+! Scope: Pure ad-SDK domains only (safe for global DNS filtering)
+
+||anythinktech.com^
+||toponad.com^
+||toponadss.com^
+||beizi.biz^
+||hubcloud.com.cn^
+||csjplatform.com^
+||ctobsnssdk.com^
+||gdt.qq.com^
+||ugdtimg.com^
+||gdtimg.com^
+||kuaishouzt.com^
+||kwaizt.com^
+||adkwai.com^
+||adukwai.com^
+||zhangyuyidong.cn^
+||8ziben.com^
+||adn-plus.com.cn^
+||1rtb.net^
+||xcultur.com^
+||ndcjl.com^
+||jomoxc.com^
+||ubixioe.com^
+||66mobi.com^
+||adbiding.cn^
+||sigmob.cn^
+||log.zijieapi.com^
+||sdk.e.qq.com^
+||open.e.kuaishou.com^
+||g-api.kwai.com^
+||mobads.baidu.com^
+||mobads-logs.baidu.com^
+||nadvideo2.baidu.com^
+||wn.pos.baidu.com^
+||als.baidu.com^
+||cpro.baidustatic.com^
+||adx.ys7.com^
+||impdsp.meituan.com^
+/*pangolin-sdk-toutiao*/
+/*pglstatp-toutiao*/

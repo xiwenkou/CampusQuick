@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "rules": [
+    {
+      "domain": [
+        "log.zijieapi.com",
+        "sdk.e.qq.com",
+        "open.e.kuaishou.com",
+        "g-api.kwai.com",
+        "mobads.baidu.com",
+        "mobads-logs.baidu.com",
+        "nadvideo2.baidu.com",
+        "wn.pos.baidu.com",
+        "als.baidu.com",
+        "cpro.baidustatic.com",
+        "adx.ys7.com",
+        "impdsp.meituan.com"
+      ],
+      "domain_suffix": [
+        "anythinktech.com",
+        "toponad.com",
+        "toponadss.com",
+        "beizi.biz",
+        "hubcloud.com.cn",
+        "csjplatform.com",
+        "ctobsnssdk.com",
+        "gdt.qq.com",
+        "ugdtimg.com",
+        "gdtimg.com",
+        "kuaishouzt.com",
+        "kwaizt.com",
+        "adkwai.com",
+        "adukwai.com",
+        "zhangyuyidong.cn",
+        "8ziben.com",
+        "adn-plus.com.cn",
+        "1rtb.net",
+        "xcultur.com",
+        "ndcjl.com",
+        "jomoxc.com",
+        "ubixioe.com",
+        "66mobi.com",
+        "adbiding.cn",
+        "sigmob.cn"
+      ],
+      "domain_keyword": [
+        "pangolin-sdk-toutiao",
+        "pglstatp-toutiao"
+      ]
+    },
+    {
+      "type": "logical",
+      "mode": "and",
+      "rules": [
+        {
+          "package_name": [
+            "com.tmall.campus.and"
+          ]
+        },
+        {
+          "domain_suffix": [
+            "zijieapi.com",
+            "snssdk.com",
+            "douyin.com",
+            "bytedance.com",
+            "volces.com",
+            "bytescm.com",
+            "yximgs.com",
+            "etoote.com"
+          ]
+        }
+      ]
+    }
+  ]
+}

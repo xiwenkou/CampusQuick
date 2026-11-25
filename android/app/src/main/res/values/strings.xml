@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CampusQuick · 极速开锁</string>
+    <string name="tile_label">一键开锁</string>
+    <string name="widget_label">极速开锁（一键直达）</string>
+    <string name="btn_launch_now">⚡ 立即直达开锁</string>
+    <string name="btn_switch_preset">切换预设</string>
+    <string name="btn_add_preset">新增自定义</string>
+    <string name="btn_pin_shortcut">固定到桌面</string>
+</resources>

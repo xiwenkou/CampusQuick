@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "presets": [
+    {
+      "id": "tmall_doorlock",
+      "name": "宿舍极速开锁",
+      "description": "跳过天猫校园首页与导航，直达宿舍门锁控制页（适配智门 / 漫威 BLE 门锁）",
+      "targetPackage": "com.tmall.campus.and",
+      "uri": "tmallcampus://web/open?url=https%3A%2F%2Fbiz.confong.cn%2Fapp%2Ftmall-xiaoyuan%2Fpage-m-webview%2FdoorLock%3FloginRequired%3Dtrue%26hideNavigator%3Dtrue%26statusBarMode%3Ddark",
+      "category": "doorlock",
+      "bleNamePrefix": "MVL",
+      "requiresBluetooth": true,
+      "recommendedMaxDistanceHint": "建议走到门前 1 米内再点开锁，避免触发 31 秒蓝牙重连超时"
+    },
+    {
+      "id": "tmall_campus_home",
+      "name": "天猫校园首页",
+      "description": "快速打开天猫校园主入口（搭配去广告规则消除开屏等待）",
+      "targetPackage": "com.tmall.campus.and",
+      "uri": "tmallcampus://home",
+      "category": "campus",
+      "requiresBluetooth": false
+    }
+  ]
+}
