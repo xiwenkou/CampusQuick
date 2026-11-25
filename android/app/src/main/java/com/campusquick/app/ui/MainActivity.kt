@@ -95,6 +95,9 @@ class MainActivity : AppCompatActivity() {
 
         currentPreset = PresetRepository.getSelectedPreset(this)
         binding.etBlePrefix.setText(PresetRepository.getBlePrefix(this))
+        val bundledRules = RuleRepository.loadBundledRules(this)
+        binding.btnCopyClashRules.text =
+            "已在使用 ClashMeta？一键复制 ${bundledRules.totalRuleCount} 条进程隔离规则"
 
         bindListeners()
         renderActivePreset()

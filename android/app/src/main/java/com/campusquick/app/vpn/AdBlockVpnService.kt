@@ -132,6 +132,7 @@ class AdBlockVpnService : VpnService() {
                     val query = DnsPacketCodec.parseIpv4UdpDnsQuery(packetCopy, len) ?: continue
 
                     if (matcher.shouldBlock(query.domainName)) {
+                        Log.d(TAG, "BLOCK ${query.domainName}")
                         val nxResp = DnsPacketCodec.buildNxdomainResponsePacket(query)
                         writeToTun(tunOut, nxResp)
                         VpnStatsStore.recordBlocked(query.domainName)

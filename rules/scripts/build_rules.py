@@ -170,6 +170,7 @@ def build_outputs(data: dict) -> dict[pathlib.Path, str]:
         "exactDomains": list(data["pure_ad_exact"]),
         "domainSuffixes": list(data["pure_ad_domains"])
         + list(data["process_scoped_domains"]),
+        "processScopedSuffixes": list(data["process_scoped_domains"]),
         "domainKeywords": list(data["pure_ad_keywords"]),
         "allowlist": list(data.get("business_allowlist", [])),
     }

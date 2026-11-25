@@ -28,7 +28,8 @@ object DiagnosticsEngine {
 
     private val PROBE_AD_HOSTS = listOf(
         "mores.anythinktech.com" to 443,
-        "sdk.beizi.biz" to 443
+        "sdk.beizi.biz" to 443,
+        "open.e.kuaishou.cn" to 443
     )
 
     suspend fun runAll(context: Context, preset: RoutePreset): List<DiagnosticItem> =
@@ -63,7 +64,7 @@ object DiagnosticsEngine {
             blockedCount == PROBE_AD_HOSTS.size -> DiagnosticItem(
                 title = "广告拦截实测探针",
                 status = CheckLevel.PASS,
-                detail = "已拦截 TopOn / 倍孜核心广告域（${blockedCount}/${PROBE_AD_HOSTS.size} 命中拒绝）"
+                detail = "已拦截 TopOn / 倍孜 / 快手联盟核心广告域（${blockedCount}/${PROBE_AD_HOSTS.size} 命中拒绝）"
             )
             blockedCount > 0 -> DiagnosticItem(
                 title = "广告拦截实测探针",

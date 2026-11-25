@@ -28,24 +28,33 @@ object RuleRepository {
             exactDomains = readStringList(root.optJSONArray("exactDomains")).toSet(),
             domainSuffixes = readStringList(root.optJSONArray("domainSuffixes")),
             domainKeywords = readStringList(root.optJSONArray("domainKeywords")),
-            allowlist = readStringList(root.optJSONArray("allowlist")).toSet()
+            allowlist = readStringList(root.optJSONArray("allowlist")).toSet(),
+            processScopedSuffixes = readStringList(root.optJSONArray("processScopedSuffixes"))
+                .map { it.lowercase() }
+                .toSet()
         )
     }
 
     /**
      * Produces ready-to-paste ClashMeta / mihomo inline rules with PROCESS-NAME isolation
-     * for shared consumer media domains.
+     * for shared consumer media / HTTPDNS / DoH domains.
      */
     fun exportClashRulesSnippet(rules: AdBlockRuleSet): String {
-        val sharedConsumerSuffixes = setOf(
-            "zijieapi.com", "snssdk.com", "douyin.com", "bytedance.com",
-            "volces.com", "bytescm.com", "yximgs.com", "etoote.com"
-        )
+        val processScoped = rules.processScopedSuffixes.ifEmpty {
+            setOf(
+                "zijieapi.com", "snssdk.com", "douyin.com", "bytedance.com", "bytedance.net",
+                "volces.com", "bytescm.com", "yximgs.com", "etoote.com",
+                "kuaishou.com", "kuaishou.cn", "kwai.com", "kwimgs.com",
+                "gifshow.com", "ksapisrv.com", "httpdns.bcelive.com",
+                "sdkoptedge.chinanetcenter.com", "doh.pub", "dns.alidns.com",
+                "qzs.qq.com", "gtimg.cn", "bdstatic.com", "bcebos.com"
+            )
+        }
         val sb = StringBuilder()
         sb.appendLine("# CampusQuick ClashMeta Rules v${rules.version} (${rules.targetPackage})")
         sb.appendLine("# 粘贴到 ClashMeta 配置 `rules:` 的最顶部（必须在 cn_domain / DIRECT 之前）")
         for (s in rules.domainSuffixes) {
-            if (s in sharedConsumerSuffixes) {
+            if (s.lowercase() in processScoped) {
                 sb.appendLine("  - AND,((PROCESS-NAME,${rules.targetPackage}),(DOMAIN-SUFFIX,$s)),REJECT")
             } else {
                 sb.appendLine("  - DOMAIN-SUFFIX,$s,REJECT")

@@ -1,5 +1,5 @@
 ! Title: CampusQuick Ad-Block Filter (Tmall Campus)
-! Version: 2.1.0
+! Version: 2.2.0
 ! Scope: Pure ad-SDK domains only (safe for global DNS filtering)
 
 ||anythinktech.com^
@@ -9,17 +9,26 @@
 ||hubcloud.com.cn^
 ||csjplatform.com^
 ||ctobsnssdk.com^
+||pangle.cn^
 ||gdt.qq.com^
+||e.qq.com^
 ||ugdtimg.com^
 ||gdtimg.com^
+||e.kuaishou.com^
+||e.kuaishou.cn^
 ||kuaishouzt.com^
 ||kwaizt.com^
 ||adkwai.com^
 ||adukwai.com^
+||kwad.com^
+||kskwai.com^
+||gskwai.com^
 ||zhangyuyidong.cn^
 ||8ziben.com^
 ||adn-plus.com.cn^
 ||1rtb.net^
+||1rtb.com^
+||adintl.cn^
 ||xcultur.com^
 ||ndcjl.com^
 ||jomoxc.com^
@@ -28,15 +37,30 @@
 ||adbiding.cn^
 ||sigmob.cn^
 ||log.zijieapi.com^
-||sdk.e.qq.com^
-||open.e.kuaishou.com^
 ||g-api.kwai.com^
+||ulog-sdk.gifshow.com^
+||zt.gifshow.com^
+||ulog-sdk.ksapisrv.com^
+||union.eff.qq.com^
+||tdid.m.qq.com^
 ||mobads.baidu.com^
 ||mobads-logs.baidu.com^
 ||nadvideo2.baidu.com^
 ||wn.pos.baidu.com^
 ||als.baidu.com^
+||aden.baidu.com^
+||bes-mtj.baidu.com^
+||dxp.baidu.com^
+||hmma.baidu.com^
+||media-interact.baidu.com^
+||union.baidu.com^
 ||cpro.baidustatic.com^
+||pms-zeus-xcdn.bdstatic.com^
+||mobads-pre-config.bj.bcebos.com^
+||mobads-pre-config.cdn.bcebos.com^
+||render-server.cdn.bcebos.com^
+||oc-adpict.oss-cn-shanghai.aliyuncs.com^
+||ad.zhuanzhuan.com^
 ||adx.ys7.com^
 ||impdsp.meituan.com^
 /*pangolin-sdk-toutiao*/

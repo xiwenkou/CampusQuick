@@ -1,6 +1,7 @@
 package com.campusquick.app
 
 import com.campusquick.app.core.AdBlockMatcher
+import com.campusquick.app.data.RuleRepository
 import com.campusquick.app.model.AdBlockRuleSet
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -9,23 +10,33 @@ import org.junit.Test
 class AdBlockMatcherTest {
 
     private val ruleSet = AdBlockRuleSet(
-        version = "2.1.0",
+        version = "2.2.0",
         targetPackage = "com.tmall.campus.and",
         exactDomains = setOf(
-            "sdk.e.qq.com",
-            "open.e.kuaishou.com",
             "g-api.kwai.com",
+            "ulog-sdk.gifshow.com",
+            "ad.zhuanzhuan.com",
+            "oc-adpict.oss-cn-shanghai.aliyuncs.com",
             "impdsp.meituan.com"
         ),
         domainSuffixes = listOf(
             "anythinktech.com",
             "beizi.biz",
             "hubcloud.com.cn",
+            "e.qq.com",
+            "e.kuaishou.com",
+            "e.kuaishou.cn",
             "kuaishouzt.com",
             "kwaizt.com",
+            "kskwai.com",
+            "gskwai.com",
             "zhangyuyidong.cn",
             "douyin.com",
-            "yximgs.com"
+            "yximgs.com",
+            "httpdns.bcelive.com",
+            "sdkoptedge.chinanetcenter.com",
+            "doh.pub",
+            "dns.alidns.com"
         ),
         domainKeywords = listOf(
             "pangolin-sdk-toutiao",
@@ -35,8 +46,10 @@ class AdBlockMatcherTest {
             "biz.confong.cn",
             "content.confong.cn",
             "o.alicdn.com",
+            "httpdns.alicdn.com",
             "tls-tmall-campus.dingtalk.com",
-            "mtop.taobao.com"
+            "mtop.taobao.com",
+            "static.luckas.cn"
         )
     )
 
@@ -54,9 +67,20 @@ class AdBlockMatcherTest {
             "sf6-fe-tos.pglstatp-toutiao.com",
             "sdk.e.qq.com",
             "open.e.kuaishou.com",
+            "open.e.kuaishou.cn",
+            "api.e.kuaishou.cn",
+            "w1.kskwai.com",
+            "w2.gskwai.com",
+            "ulog-sdk.gifshow.com",
             "open.kuaishouzt.com",
             "open.kwaizt.com",
             "g-api.kwai.com",
+            "httpdns.bcelive.com",
+            "sdkoptedge.chinanetcenter.com",
+            "doh.pub",
+            "dns.alidns.com",
+            "ad.zhuanzhuan.com",
+            "oc-adpict.oss-cn-shanghai.aliyuncs.com",
             "impdsp.meituan.com",
             "webcast-open.douyin.com",
             "ali.pull.yximgs.com"
@@ -92,5 +116,20 @@ class AdBlockMatcherTest {
         )
         assertFalse(overridingMatcher.shouldBlock("safe.anythinktech.com"))
         assertTrue(overridingMatcher.shouldBlock("datk.anythinktech.com"))
+    }
+
+    @Test
+    fun clashExportIsolatesProcessScopedDomains() {
+        val scopedRules = ruleSet.copy(
+            domainSuffixes = listOf("anythinktech.com", "e.kuaishou.cn", "kuaishou.cn", "doh.pub", "httpdns.bcelive.com"),
+            processScopedSuffixes = setOf("kuaishou.cn", "doh.pub", "httpdns.bcelive.com")
+        )
+        val snippet = RuleRepository.exportClashRulesSnippet(scopedRules)
+        assertTrue(snippet.contains("- DOMAIN-SUFFIX,anythinktech.com,REJECT"))
+        assertTrue(snippet.contains("- DOMAIN-SUFFIX,e.kuaishou.cn,REJECT"))
+        assertTrue(snippet.contains("- AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,kuaishou.cn)),REJECT"))
+        assertTrue(snippet.contains("- AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,doh.pub)),REJECT"))
+        assertFalse(snippet.contains("- DOMAIN-SUFFIX,kuaishou.cn,REJECT"))
+        assertFalse(snippet.contains("- DOMAIN-SUFFIX,doh.pub,REJECT"))
     }
 }

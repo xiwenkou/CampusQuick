@@ -220,7 +220,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="已在使用 ClashMeta？一键复制 47 条进程隔离规则"
+                    android:text="已在使用 ClashMeta？一键复制 86 条进程隔离规则"
                     android:textSize="12sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

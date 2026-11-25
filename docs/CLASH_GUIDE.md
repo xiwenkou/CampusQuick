@@ -6,7 +6,7 @@
 
 ## 方案 1：Clash Verge Rev / Mihomo（推荐 · 更新订阅永不丢失）
 
-使用 `rules/dist/tmall_campus_override.js` 作为全局覆写脚本（Global Extend Script），每次订阅更新会自动将 47 条进程隔离规则置顶。
+使用 `rules/dist/tmall_campus_override.js` 作为全局覆写脚本（Global Extend Script），每次订阅更新会自动将 86 条进程隔离规则置顶。
 
 ## 方案 2：ClashMeta / Mihomo `rule-providers` 远程订阅（推荐）
 

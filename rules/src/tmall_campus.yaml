@@ -3,9 +3,9 @@
 # Target: com.tmall.campus.and (天猫校园)
 # Verified on live Android 14 device (cold launch 402/402 ad requests rejected)
 # ==============================================================================
-version: "2.1.0"
+version: "2.2.0"
 target_package: "com.tmall.campus.and"
-description: "Non-invasive ad-SDK domain blocking rules for Tmall Campus (primary + fallback ad networks + process-scoped isolation)."
+description: "Non-invasive ad-SDK domain blocking rules for Tmall Campus (primary + IDC fallback + HTTPDNS/DoH bypass prevention + process-scoped isolation)."
 
 # Pure ad-SDK suffixes: safe to block globally without affecting normal apps
 pure_ad_domains:
@@ -19,20 +19,29 @@ pure_ad_domains:
   # Pangolin / GroMore
   - csjplatform.com
   - ctobsnssdk.com
+  - pangle.cn
   # Tencent GDT
   - gdt.qq.com
+  - e.qq.com
   - ugdtimg.com
   - gdtimg.com
-  # Kuaishou Ad Network (primary + numbered/alias fallbacks)
+  # Kuaishou Ad Network (primary + assets/ksad_idc.json fallback IDCs & CDNs)
+  - e.kuaishou.com
+  - e.kuaishou.cn
   - kuaishouzt.com
   - kwaizt.com
   - adkwai.com
   - adukwai.com
+  - kwad.com
+  - kskwai.com
+  - gskwai.com
   # Secondary SDKs & SSP/RTB exchanges
   - zhangyuyidong.cn
   - 8ziben.com
   - adn-plus.com.cn
   - 1rtb.net
+  - 1rtb.com
+  - adintl.cn
   - xcultur.com
   - ndcjl.com
   - jomoxc.com
@@ -49,15 +58,30 @@ pure_ad_keywords:
 # Exact pure ad hosts (where parent domain serves normal consumer services)
 pure_ad_exact:
   - log.zijieapi.com
-  - sdk.e.qq.com
-  - open.e.kuaishou.com
   - g-api.kwai.com
+  - ulog-sdk.gifshow.com
+  - zt.gifshow.com
+  - ulog-sdk.ksapisrv.com
+  - union.eff.qq.com
+  - tdid.m.qq.com
   - mobads.baidu.com
   - mobads-logs.baidu.com
   - nadvideo2.baidu.com
   - wn.pos.baidu.com
   - als.baidu.com
+  - aden.baidu.com
+  - bes-mtj.baidu.com
+  - dxp.baidu.com
+  - hmma.baidu.com
+  - media-interact.baidu.com
+  - union.baidu.com
   - cpro.baidustatic.com
+  - pms-zeus-xcdn.bdstatic.com
+  - mobads-pre-config.bj.bcebos.com
+  - mobads-pre-config.cdn.bcebos.com
+  - render-server.cdn.bcebos.com
+  - oc-adpict.oss-cn-shanghai.aliyuncs.com
+  - ad.zhuanzhuan.com
   - adx.ys7.com
   - impdsp.meituan.com
 
@@ -68,10 +92,28 @@ process_scoped_domains:
   - snssdk.com
   - douyin.com
   - bytedance.com
+  - bytedance.net
   - volces.com
   - bytescm.com
   - yximgs.com
   - etoote.com
+  # Kuaishou full process isolation (prevents IDC / Aegon fallback inside target app only)
+  - kuaishou.com
+  - kuaishou.cn
+  - kwai.com
+  - kwimgs.com
+  - gifshow.com
+  - ksapisrv.com
+  # Ad-SDK HTTPDNS & DoH bypass prevention (scoped to target app only)
+  - httpdns.bcelive.com
+  - sdkoptedge.chinanetcenter.com
+  - doh.pub
+  - dns.alidns.com
+  # GDT / Baidu MobAds creative CDNs (scoped to target app only)
+  - qzs.qq.com
+  - gtimg.cn
+  - bdstatic.com
+  - bcebos.com
 
 # Regression guard: business domains that MUST NEVER be blocked
 business_allowlist:
@@ -83,6 +125,8 @@ business_allowlist:
   - campus-2c-app.cn-hangzhou.log.aliyuncs.com
   - mtop.taobao.com
   - api.m.taobao.com
+  - acs.m.taobao.com
+  - msgacs.m.taobao.com
   - login.tmall.com
   - static.luckas.cn
 
@@ -90,8 +134,12 @@ business_allowlist:
 consumer_apps_guard:
   - www.douyin.com
   - www.kuaishou.com
+  - www.kuaishou.cn
+  - www.gifshow.com
   - tx.pull.yximgs.com
   - www.meituan.com
   - tnc3-bjlgy.zijieapi.com
   - www.baidu.com
   - wx.qq.com
+  - doh.pub
+  - dns.alidns.com

@@ -6,5 +6,9 @@ data class AdBlockRuleSet(
     val exactDomains: Set<String>,
     val domainSuffixes: List<String>,
     val domainKeywords: List<String>,
-    val allowlist: Set<String>
-)
+    val allowlist: Set<String>,
+    val processScopedSuffixes: Set<String> = emptySet()
+) {
+    val totalRuleCount: Int
+        get() = exactDomains.size + domainSuffixes.size + domainKeywords.size
+}
