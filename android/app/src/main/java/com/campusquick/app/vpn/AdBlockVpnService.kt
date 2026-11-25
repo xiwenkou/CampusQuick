@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import com.campusquick.app.R
 import com.campusquick.app.core.AdBlockMatcher
 import com.campusquick.app.core.DnsPacketCodec
@@ -58,7 +59,8 @@ class AdBlockVpnService : VpnService() {
     }
 
     private fun startVpn(targetPackage: String) {
-        if (running.getAndSet(true)) return
+        if (running.get() && vpnInterface != null) return
+        running.set(true)
 
         val rules = RuleRepository.loadBundledRules(this)
         val matcher = AdBlockMatcher(rules)
@@ -78,12 +80,18 @@ class AdBlockVpnService : VpnService() {
         val builder = Builder()
             .setSession("CampusQuick Local AdBlock")
             .setMtu(1500)
+            .setBlocking(true)
             .addAddress(VPN_CLIENT_IP, 32)
             .addDnsServer(VPN_DNS_IP)
             .addRoute(VPN_DNS_IP, 32)
 
         try {
             builder.addAllowedApplication(targetPackage)
+            // Also include self so DiagnosticsEngine probes traverse the real local TUN end-to-end;
+            // upstream DNS forwarding uses literal IPv4s via protect(socket), so no loop occurs.
+            if (targetPackage != packageName) {
+                builder.addAllowedApplication(packageName)
+            }
         } catch (e: PackageManager.NameNotFoundException) {
             running.set(false)
             VpnStatsStore.setRunning(false, targetPackage, "未安装目标应用: $targetPackage")
@@ -105,6 +113,7 @@ class AdBlockVpnService : VpnService() {
         val pool = Executors.newFixedThreadPool(4)
         workerPool = pool
         VpnStatsStore.setRunning(true, targetPackage, null)
+        Log.i(TAG, "Per-App local DNS VPN established for $targetPackage (+self probe)")
 
         val tunOut = FileOutputStream(tun.fileDescriptor)
         val tunIn = FileInputStream(tun.fileDescriptor)
@@ -114,8 +123,9 @@ class AdBlockVpnService : VpnService() {
             try {
                 while (running.get()) {
                     val len = tunIn.read(buf)
-                    if (len <= 0) {
-                        if (len < 0) break
+                    if (len < 0) break
+                    if (len == 0) {
+                        Thread.sleep(10)
                         continue
                     }
                     val packetCopy = buf.copyOf(len)
@@ -126,6 +136,7 @@ class AdBlockVpnService : VpnService() {
                         writeToTun(tunOut, nxResp)
                         VpnStatsStore.recordBlocked(query.domainName)
                     } else {
+                        Log.d(TAG, "ALLOW ${query.domainName}")
                         pool.execute {
                             val upstreamResp = forwardDnsUpstream(query.dnsPayload)
                             if (upstreamResp != null && running.get()) {
@@ -139,8 +150,10 @@ class AdBlockVpnService : VpnService() {
             } catch (_: Exception) {
                 // Expected when TUN fd closes on stopVpn()
             } finally {
-                if (running.get()) {
-                    stopVpn()
+                val shouldStopSelf = running.get()
+                stopVpn()
+                if (shouldStopSelf) {
+                    stopSelf()
                 }
             }
         }, "CampusQuick-DnsLoop").apply {
@@ -259,6 +272,7 @@ class AdBlockVpnService : VpnService() {
         const val ACTION_STOP = "com.campusquick.app.vpn.STOP"
         const val EXTRA_TARGET_PACKAGE = "extra_target_package"
 
+        private const val TAG = "CampusQuickVPN"
         private const val VPN_CLIENT_IP = "10.120.0.1"
         private const val VPN_DNS_IP = "10.120.0.2"
         private const val UPSTREAM_TIMEOUT_MS = 2500

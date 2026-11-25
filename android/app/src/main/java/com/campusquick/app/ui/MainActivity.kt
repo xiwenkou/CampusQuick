@@ -48,6 +48,7 @@ class MainActivity : AppCompatActivity() {
     private var bleScanning = false
     private var nfcWriteMode = false
     private var suppressVpnSwitchCallback = false
+    private var lastObservedVpnRunning: Boolean? = null
 
     private val vpnConsentLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -263,6 +264,10 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     snap.recentBlocked.take(6).joinToString("\n")
                 }
+                if (lastObservedVpnRunning != null && lastObservedVpnRunning != snap.running) {
+                    binding.root.postDelayed({ runDiagnostics() }, 400)
+                }
+                lastObservedVpnRunning = snap.running
             }
         }
     }
