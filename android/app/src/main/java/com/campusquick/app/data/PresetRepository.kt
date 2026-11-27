@@ -12,6 +12,8 @@ object PresetRepository {
     private const val KEY_SELECTED_ID = "selected_preset_id"
     private const val KEY_CUSTOM_PRESETS = "custom_presets_json"
     private const val KEY_BLE_PREFIX = "ble_name_prefix"
+    private const val KEY_VPN_AUTO_PROTECT = "vpn_auto_protect_enabled"
+    private const val KEY_VPN_TARGET_PACKAGE = "vpn_target_package"
 
     fun parsePresetsJson(jsonText: String, userCustom: Boolean = false): List<RoutePreset> {
         val root = JSONObject(jsonText)
@@ -120,6 +122,22 @@ object PresetRepository {
 
     fun setBlePrefix(context: Context, prefix: String) {
         prefs(context).edit().putString(KEY_BLE_PREFIX, prefix.trim()).apply()
+    }
+
+    fun isAutoVpnEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_VPN_AUTO_PROTECT, false)
+
+    fun setAutoVpnEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_VPN_AUTO_PROTECT, enabled).apply()
+    }
+
+    fun getVpnTargetPackage(context: Context): String =
+        prefs(context).getString(KEY_VPN_TARGET_PACKAGE, null)?.takeIf { it.isNotBlank() }
+            ?: getSelectedPreset(context).targetPackage
+
+    fun setVpnTargetPackage(context: Context, targetPackage: String) {
+        if (targetPackage.isBlank()) return
+        prefs(context).edit().putString(KEY_VPN_TARGET_PACKAGE, targetPackage.trim()).apply()
     }
 
     private fun prefs(context: Context) =

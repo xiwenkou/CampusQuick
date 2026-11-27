@@ -97,4 +97,66 @@ class DnsPacketCodecTest {
         val nonDnsPort = buildSampleIpv4UdpDnsQuery("biz.confong.cn").also { it[23] = 80 }
         assertNull(DnsPacketCodec.parseIpv4UdpDnsQuery(nonDnsPort))
     }
+
+    @Test
+    fun parsesTcpSynAndSynthesizesValidRstAckForDirectHttpDnsBypass() {
+        // Build 40-byte IPv4/TCP SYN from 10.120.0.1:45678 -> 119.29.29.29:80
+        val syn = ByteArray(40)
+        syn[0] = 0x45.toByte()
+        syn[2] = 0
+        syn[3] = 40
+        syn[8] = 64
+        syn[9] = 6 // TCP
+        syn[12] = 10; syn[13] = 120; syn[14] = 0; syn[15] = 1
+        syn[16] = 119; syn[17] = 29; syn[18] = 29; syn[19] = 29
+        val ipSum = DnsPacketCodec.computeChecksum(syn, 0, 20)
+        syn[10] = ((ipSum ushr 8) and 0xFF).toByte()
+        syn[11] = (ipSum and 0xFF).toByte()
+        // srcPort=45678, dstPort=80, seq=1000, dataOffset=5 (0x50), flags=SYN(0x02)
+        syn[20] = ((45678 ushr 8) and 0xFF).toByte()
+        syn[21] = (45678 and 0xFF).toByte()
+        syn[22] = 0; syn[23] = 80
+        syn[24] = 0; syn[25] = 0; syn[26] = 0x03; syn[27] = 0xE8.toByte()
+        syn[32] = 0x50.toByte()
+        syn[33] = 0x02.toByte()
+
+        val parsed = DnsPacketCodec.parseIpv4TcpPacket(syn)
+        assertNotNull(parsed)
+        parsed!!
+        assertEquals("119.29.29.29", parsed.dstIpText)
+        assertEquals(80, parsed.dstPort)
+        assertTrue(parsed.isSyn)
+
+        val rst = DnsPacketCodec.buildTcpRstResponsePacket(parsed)
+        assertNotNull(rst)
+        rst!!
+        assertEquals(40, rst.size)
+        // IPv4 header checksum validates to 0
+        assertEquals(0, DnsPacketCodec.computeChecksum(rst, 0, 20))
+        // TCP checksum validates to 0
+        val tcpCheck = DnsPacketCodec.computeTransportChecksum(
+            packet = rst,
+            srcIp = rst.copyOfRange(12, 16),
+            dstIp = rst.copyOfRange(16, 20),
+            protocol = 6,
+            transportOffset = 20,
+            transportLen = 20
+        )
+        assertEquals(0, tcpCheck)
+        // Swapped src/dst ports: 80 -> 45678
+        assertEquals(80, ((rst[20].toInt() and 0xFF) shl 8) or (rst[21].toInt() and 0xFF))
+        assertEquals(45678, ((rst[22].toInt() and 0xFF) shl 8) or (rst[23].toInt() and 0xFF))
+        // Flags = RST|ACK (0x14), ack = 1001
+        assertEquals(0x14, rst[33].toInt() and 0xFF)
+        val ackNum = ((rst[28].toLong() and 0xFF) shl 24) or
+            ((rst[29].toLong() and 0xFF) shl 16) or
+            ((rst[30].toLong() and 0xFF) shl 8) or
+            (rst[31].toLong() and 0xFF)
+        assertEquals(1001L, ackNum)
+
+        // Incoming RST must NOT generate a reply (avoid RST loops)
+        val rstParsed = DnsPacketCodec.parseIpv4TcpPacket(rst)
+        assertNotNull(rstParsed)
+        assertNull(DnsPacketCodec.buildTcpRstResponsePacket(rstParsed!!))
+    }
 }

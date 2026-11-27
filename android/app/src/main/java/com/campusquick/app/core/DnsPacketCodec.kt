@@ -6,11 +6,37 @@ package com.campusquick.app.core
  */
 object DnsPacketCodec {
 
+    private const val IP_PROTOCOL_TCP = 6
     private const val IP_PROTOCOL_UDP = 17
     private const val DNS_PORT = 53
     private const val IPV4_HEADER_LEN = 20
+    private const val TCP_HEADER_LEN = 20
     private const val UDP_HEADER_LEN = 8
     private const val DNS_HEADER_LEN = 12
+
+    private const val TCP_FLAG_FIN = 0x01
+    private const val TCP_FLAG_SYN = 0x02
+    private const val TCP_FLAG_RST = 0x04
+    private const val TCP_FLAG_ACK = 0x10
+
+    data class ParsedTcpPacket(
+        val srcIp: ByteArray,
+        val dstIp: ByteArray,
+        val srcPort: Int,
+        val dstPort: Int,
+        val seqNum: Long,
+        val ackNum: Long,
+        val flags: Int,
+        val payloadLength: Int
+    ) {
+        val dstIpText: String
+            get() = "${dstIp[0].toInt() and 0xFF}.${dstIp[1].toInt() and 0xFF}." +
+                "${dstIp[2].toInt() and 0xFF}.${dstIp[3].toInt() and 0xFF}"
+
+        val isRst: Boolean get() = (flags and TCP_FLAG_RST) != 0
+        val isSyn: Boolean get() = (flags and TCP_FLAG_SYN) != 0
+        val isAck: Boolean get() = (flags and TCP_FLAG_ACK) != 0
+    }
 
     data class ParsedDnsQuery(
         val srcIp: ByteArray,
@@ -238,11 +264,155 @@ object DnsPacketCodec {
         return if (result == 0) 0xFFFF else result
     }
 
+    /**
+     * Parses an IPv4 TCP packet from TUN (used to reject direct-IP HTTPDNS/DoH bypasses
+     * such as 119.29.29.29:80 with an instant local TCP RST instead of letting SYN hang).
+     */
+    fun parseIpv4TcpPacket(packet: ByteArray, length: Int = packet.size): ParsedTcpPacket? {
+        if (length < IPV4_HEADER_LEN + TCP_HEADER_LEN) return null
+
+        val version = (packet[0].toInt() ushr 4) and 0x0F
+        if (version != 4) return null
+
+        val ihl = (packet[0].toInt() and 0x0F) * 4
+        if (ihl < IPV4_HEADER_LEN || length < ihl + TCP_HEADER_LEN) return null
+
+        val ipTotalLen = readU16(packet, 2)
+        val effectiveLen = minOf(length, ipTotalLen)
+        if (effectiveLen < ihl + TCP_HEADER_LEN) return null
+
+        val protocol = packet[9].toInt() and 0xFF
+        if (protocol != IP_PROTOCOL_TCP) return null
+
+        val dataOffset = ((packet[ihl + 12].toInt() ushr 4) and 0x0F) * 4
+        if (dataOffset < TCP_HEADER_LEN || effectiveLen < ihl + dataOffset) return null
+
+        return ParsedTcpPacket(
+            srcIp = packet.copyOfRange(12, 16),
+            dstIp = packet.copyOfRange(16, 20),
+            srcPort = readU16(packet, ihl),
+            dstPort = readU16(packet, ihl + 2),
+            seqNum = readU32(packet, ihl + 4),
+            ackNum = readU32(packet, ihl + 8),
+            flags = packet[ihl + 13].toInt() and 0xFF,
+            payloadLength = effectiveLen - ihl - dataOffset
+        )
+    }
+
+    /**
+     * Synthesizes a valid RFC 793 IPv4/TCP RST (or RST+ACK for SYN) packet so blocked
+     * direct-IP HTTPDNS connections fail in < 1 ms with ECONNREFUSED.
+     * Returns null if the incoming segment already has RST set.
+     */
+    fun buildTcpRstResponsePacket(tcp: ParsedTcpPacket): ByteArray? {
+        if (tcp.isRst) return null
+
+        val totalLen = IPV4_HEADER_LEN + TCP_HEADER_LEN
+        val out = ByteArray(totalLen)
+
+        // IPv4 header
+        out[0] = 0x45.toByte()
+        out[1] = 0x00
+        writeU16(out, 2, totalLen)
+        writeU16(out, 4, (tcp.srcPort xor tcp.dstPort) and 0xFFFF)
+        out[6] = 0x40.toByte() // DF
+        out[7] = 0x00
+        out[8] = 64.toByte() // TTL
+        out[9] = IP_PROTOCOL_TCP.toByte()
+        out[10] = 0x00
+        out[11] = 0x00
+        System.arraycopy(tcp.dstIp, 0, out, 12, 4)
+        System.arraycopy(tcp.srcIp, 0, out, 16, 4)
+        writeU16(out, 10, computeChecksum(out, 0, IPV4_HEADER_LEN))
+
+        // TCP header (20 bytes)
+        writeU16(out, IPV4_HEADER_LEN, tcp.dstPort)
+        writeU16(out, IPV4_HEADER_LEN + 2, tcp.srcPort)
+
+        val respSeq: Long
+        val respAck: Long
+        val respFlags: Int
+        if (tcp.isAck) {
+            respSeq = tcp.ackNum and 0xFFFFFFFFL
+            respAck = 0L
+            respFlags = TCP_FLAG_RST
+        } else {
+            val synFinAdvance =
+                (if (tcp.isSyn) 1L else 0L) + (if ((tcp.flags and TCP_FLAG_FIN) != 0) 1L else 0L)
+            respSeq = 0L
+            respAck = (tcp.seqNum + tcp.payloadLength.toLong() + synFinAdvance) and 0xFFFFFFFFL
+            respFlags = TCP_FLAG_RST or TCP_FLAG_ACK
+        }
+
+        writeU32(out, IPV4_HEADER_LEN + 4, respSeq)
+        writeU32(out, IPV4_HEADER_LEN + 8, respAck)
+        out[IPV4_HEADER_LEN + 12] = 0x50.toByte() // Data offset = 5 (20 bytes)
+        out[IPV4_HEADER_LEN + 13] = respFlags.toByte()
+        writeU16(out, IPV4_HEADER_LEN + 14, 0) // Window = 0
+        writeU16(out, IPV4_HEADER_LEN + 16, 0) // Checksum placeholder
+        writeU16(out, IPV4_HEADER_LEN + 18, 0) // Urgent pointer = 0
+
+        val tcpChecksum = computeTransportChecksum(
+            packet = out,
+            srcIp = tcp.dstIp,
+            dstIp = tcp.srcIp,
+            protocol = IP_PROTOCOL_TCP,
+            transportOffset = IPV4_HEADER_LEN,
+            transportLen = TCP_HEADER_LEN
+        )
+        writeU16(out, IPV4_HEADER_LEN + 16, tcpChecksum)
+        return out
+    }
+
+    internal fun computeTransportChecksum(
+        packet: ByteArray,
+        srcIp: ByteArray,
+        dstIp: ByteArray,
+        protocol: Int,
+        transportOffset: Int,
+        transportLen: Int
+    ): Int {
+        var sum = 0L
+        sum += readU16(srcIp, 0)
+        sum += readU16(srcIp, 2)
+        sum += readU16(dstIp, 0)
+        sum += readU16(dstIp, 2)
+        sum += protocol
+        sum += transportLen
+
+        var i = transportOffset
+        val end = transportOffset + transportLen
+        while (i + 1 < end) {
+            sum += ((packet[i].toInt() and 0xFF) shl 8) or (packet[i + 1].toInt() and 0xFF)
+            i += 2
+        }
+        if (i < end) {
+            sum += (packet[i].toInt() and 0xFF) shl 8
+        }
+        while ((sum ushr 16) != 0L) {
+            sum = (sum and 0xFFFF) + (sum ushr 16)
+        }
+        return (sum.inv() and 0xFFFF).toInt()
+    }
+
     private fun readU16(buf: ByteArray, offset: Int): Int =
         ((buf[offset].toInt() and 0xFF) shl 8) or (buf[offset + 1].toInt() and 0xFF)
+
+    private fun readU32(buf: ByteArray, offset: Int): Long =
+        ((buf[offset].toLong() and 0xFF) shl 24) or
+            ((buf[offset + 1].toLong() and 0xFF) shl 16) or
+            ((buf[offset + 2].toLong() and 0xFF) shl 8) or
+            (buf[offset + 3].toLong() and 0xFF)
 
     private fun writeU16(buf: ByteArray, offset: Int, value: Int) {
         buf[offset] = ((value ushr 8) and 0xFF).toByte()
         buf[offset + 1] = (value and 0xFF).toByte()
+    }
+
+    private fun writeU32(buf: ByteArray, offset: Int, value: Long) {
+        buf[offset] = ((value ushr 24) and 0xFF).toByte()
+        buf[offset + 1] = ((value ushr 16) and 0xFF).toByte()
+        buf[offset + 2] = ((value ushr 8) and 0xFF).toByte()
+        buf[offset + 3] = (value and 0xFF).toByte()
     }
 }

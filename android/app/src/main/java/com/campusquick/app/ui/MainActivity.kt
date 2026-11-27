@@ -1,6 +1,7 @@
 package com.campusquick.app.ui
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -11,6 +12,7 @@ import android.net.VpnService
 import android.nfc.NfcAdapter
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.LayoutInflater
 import android.widget.CheckBox
@@ -36,6 +38,7 @@ import com.campusquick.app.databinding.ActivityMainBinding
 import com.campusquick.app.entry.QuickUnlockWidgetProvider
 import com.campusquick.app.model.RoutePreset
 import com.campusquick.app.vpn.AdBlockVpnService
+import com.campusquick.app.vpn.VpnLifecycleManager
 import com.campusquick.app.vpn.VpnStatsStore
 import kotlinx.coroutines.launch
 
@@ -102,7 +105,17 @@ class MainActivity : AppCompatActivity() {
         bindListeners()
         renderActivePreset()
         observeVpnState()
-        runDiagnostics()
+        // Auto-revive local VPN if previously enabled and not preempted by an external VPN
+        if (VpnLifecycleManager.startIfEligible(this, currentPreset.targetPackage)) {
+            binding.root.postDelayed({ runDiagnostics() }, 600)
+        } else {
+            runDiagnostics()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateRecentsExclusion(AdBlockVpnService.isTunnelActive())
     }
 
     override fun onPause() {
@@ -115,7 +128,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindListeners() {
         binding.btnLaunchNow.setOnClickListener {
-            RouteLauncher.launch(this, currentPreset)
+            if (VpnLifecycleManager.startIfEligible(this, currentPreset.targetPackage)) {
+                Thread({
+                    VpnStatsStore.awaitTunnelReady(400L)
+                    runOnUiThread { RouteLauncher.launch(this, currentPreset) }
+                }, "CampusQuick-MainLaunchRevive").start()
+            } else {
+                RouteLauncher.launch(this, currentPreset)
+            }
         }
 
         binding.btnSwitchPreset.setOnClickListener {
@@ -255,9 +275,12 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             VpnStatsStore.state.collect { snap ->
                 syncVpnSwitch(snap.running)
+                updateRecentsExclusion(snap.running)
                 binding.tvVpnStatus.text = when {
                     snap.lastError != null -> "状态：${snap.lastError}"
-                    snap.running -> "状态：运行中（仅接管 ${snap.targetPackage} 广告 DNS，零外部代理）"
+                    snap.running -> "状态：运行中（防误杀自动保护已开启 · 仅接管 ${snap.targetPackage}）"
+                    PresetRepository.isAutoVpnEnabled(this@MainActivity) ->
+                        "状态：待机自恢复中（点击一键开锁时将自动拉活本地去广告 VPN）"
                     else -> "状态：未启动（若已在用 ClashMeta 规则则无需开启本开关）"
                 }
                 binding.tvVpnStats.text =
@@ -272,6 +295,18 @@ class MainActivity : AppCompatActivity() {
                 }
                 lastObservedVpnRunning = snap.running
             }
+        }
+    }
+
+    /**
+     * Excludes CampusQuick from Recents while local VPN is running so muscle-memory
+     * swipe-up clearing (e.g. OriginOS single-cleaner) does not accidentally force-stop the VPN.
+     */
+    private fun updateRecentsExclusion(exclude: Boolean) {
+        try {
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return
+            am.appTasks?.forEach { it.setExcludeFromRecents(exclude) }
+        } catch (_: Exception) {
         }
     }
 
@@ -303,6 +338,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startLocalVpnService() {
+        PresetRepository.setAutoVpnEnabled(this, true)
+        PresetRepository.setVpnTargetPackage(this, currentPreset.targetPackage)
         val intent = Intent(this, AdBlockVpnService::class.java).apply {
             action = AdBlockVpnService.ACTION_START
             putExtra(AdBlockVpnService.EXTRA_TARGET_PACKAGE, currentPreset.targetPackage)
@@ -312,6 +349,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopLocalVpnService() {
+        PresetRepository.setAutoVpnEnabled(this, false)
         val intent = Intent(this, AdBlockVpnService::class.java).apply {
             action = AdBlockVpnService.ACTION_STOP
         }
@@ -424,7 +462,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @Suppress("BatteryLife")
     private fun openBatterySettings() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            try {
+                val selfIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                startActivity(selfIntent)
+                return
+            } catch (_: Exception) {
+            }
+        }
         val targetIntent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
         try {
             startActivity(targetIntent)

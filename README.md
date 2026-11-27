@@ -72,7 +72,7 @@ flowchart LR
 
 - **四入口直达 + 路由配置化**：支持桌面图标、2×1 桌面微件、控制中心快捷磁贴（Android 14 `PendingIntent` + 锁屏 `unlockAndRun`）、门框 NFC 贴纸（内置 NDEF 写卡器），以及自定义校园 DeepLink 预设。
 - **双模精准去广告**：
-  - **无代理用户（内置 Per-App 本地 DNS VPN）**：利用 `VpnService.Builder.addAllowedApplication()` **仅接管目标 App** 且仅路由虚拟 DNS 地址 `10.120.0.2/32`，命中广告域 < 1ms 返回本地 `NXDOMAIN`，业务 HTTPS 流量完全不走 TUN，零耗电、不影响其他任何 App。
+  - **无代理用户（内置 Per-App 本地 DNS + 直连 HTTPDNS 过滤 VPN）**：利用 `VpnService.Builder.addAllowedApplication()` **仅接管目标 App**，路由虚拟 DNS `10.120.0.2/32` 与常见广告直连 HTTPDNS IP（如 `119.29.29.29/32`），广告域名 < 1ms 返回本地 `NXDOMAIN`、直连 HTTPDNS TCP 请求 < 1ms 返回 `TCP RST`，业务 HTTPS 流量完全不走 TUN；同时内置**最近任务防误杀隐藏、切网自动刷新、开机自恢复与点击一键开锁自动拉活（~50ms 建隧后再拉起目标 App）**，彻底解决国产 ROM 后台强杀导致的时灵时不灵。
   - **代理用户（ClashMeta / Sing-box / AdGuard）**：由单源 YAML 自动编译 6 种格式，对抖音/快手等共享媒体域启用 `PROCESS-NAME` 进程级隔离，不误伤本机正常 App。
 - **BLE 近场防呆**：扫描门锁前缀信号强度（默认 `MVL`，可自定义，无个人 MAC 硬编码），到门前 1 米内提示绿灯可秒开，规避 31 秒蓝牙重连超时。
 - **5 项实时环境体检**：内置广告域实时连通性探针、DeepLink 可达性、Doze 电池白名单、蓝牙/定位状态、VPN 冲突自动识别。
@@ -135,6 +135,7 @@ cd android
 本应用坚持最小权限原则，**零广告、零联网遥测、零账号采集、不修改任何第三方 App 安装包**：
 - `INTERNET` / `ACCESS_NETWORK_STATE`：仅用于 Per-App 本地 VPN 放行业务 DNS 查询与自检探针；
 - `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_SPECIAL_USE` / `POST_NOTIFICATIONS`：仅在用户主动开启本地去广告 VPN 时保持前台运行；
+- `RECEIVE_BOOT_COMPLETED` / `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`：可选，用于重启后自动恢复已开启的本地 VPN 并一键加入电池优化白名单，防止系统后台强杀；
 - `NFC`：可选，用于写入/触发门框 NFC 贴纸；
 - `BLUETOOTH_SCAN`（声明 `neverForLocation`）/ `BLUETOOTH_CONNECT`：可选，用于门锁近场测距防呆，Android 12+ 无需定位权限。
 

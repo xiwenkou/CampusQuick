@@ -137,18 +137,23 @@ object DiagnosticsEngine {
 
     private fun checkBatteryWhitelist(context: Context, targetPackage: String): DiagnosticItem {
         val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val selfExempt = pm.isIgnoringBatteryOptimizations(context.packageName)
         val targetExempt = pm.isIgnoringBatteryOptimizations(targetPackage)
-        return if (targetExempt) {
-            DiagnosticItem(
+        return when {
+            selfExempt && targetExempt -> DiagnosticItem(
                 title = "后台保活（电池优化白名单）",
                 status = CheckLevel.PASS,
-                detail = "$targetPackage 已在系统 Doze 白名单中，减少 108MB 冷启动"
+                detail = "CampusQuick 与 $targetPackage 均已在系统 Doze 白名单中（防后台杀 VPN、减少冷启动）"
             )
-        } else {
-            DiagnosticItem(
+            !selfExempt -> DiagnosticItem(
                 title = "后台保活（电池优化白名单）",
                 status = CheckLevel.WARN,
-                detail = "$targetPackage 尚未加入电池白名单，建议点下方按钮前往系统电池设置设为不限制"
+                detail = "CampusQuick 自身尚未加入电池白名单，后台可能被系统清理导致本地 VPN 掉线；请点下方按钮一键放行"
+            )
+            else -> DiagnosticItem(
+                title = "后台保活（电池优化白名单）",
+                status = CheckLevel.WARN,
+                detail = "$targetPackage 尚未加入电池白名单，建议点下方按钮设为不限制以保持 0.35s 热启"
             )
         }
     }

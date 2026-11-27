@@ -9,6 +9,8 @@ local.properties
 android/build/
 android/app/build/
 android/.cxx/
+android/.kotlin/
+.kotlin/
 android/captures/
 
 # Python

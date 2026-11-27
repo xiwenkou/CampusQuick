@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -15,6 +17,7 @@ import android.util.Log
 import com.campusquick.app.R
 import com.campusquick.app.core.AdBlockMatcher
 import com.campusquick.app.core.DnsPacketCodec
+import com.campusquick.app.data.PresetRepository
 import com.campusquick.app.data.RuleRepository
 import com.campusquick.app.ui.MainActivity
 import java.io.FileInputStream
@@ -27,31 +30,41 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Per-App Local DNS-Filtering VpnService.
+ * Per-App Local DNS & Direct-IP HTTPDNS Filtering VpnService.
  *
  * Design highlights:
- * - Uses addAllowedApplication(targetPackage) so ONLY the target campus app's DNS traffic is captured.
- * - Routes ONLY virtual DNS server 10.120.0.2/32 into TUN; all normal HTTPS/TCP/BLE traffic flows natively.
- * - Blocked ad domains receive an instant local NXDOMAIN (< 1 ms); allowed domains forward via protect()-ed UDP.
+ * - Uses addAllowedApplication(targetPackage) so ONLY the target campus app's traffic is affected.
+ * - Routes virtual DNS 10.120.0.2/32 AND known public/ad-SDK direct-IP HTTPDNS servers (e.g.
+ *   119.29.29.29/32) into TUN; all normal HTTPS/TCP/BLE business traffic flows natively.
+ * - Blocked ad domains receive an instant local NXDOMAIN (< 1 ms); direct-IP HTTPDNS TCP SYNs
+ *   receive an instant RFC 793 TCP RST (< 1 ms); allowed DNS queries forward via protect()-ed UDP.
+ * - Refreshes underlying networks automatically across Wi-Fi <-> 5G handoffs.
  */
 class AdBlockVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private var readerThread: Thread? = null
     private var workerPool: ExecutorService? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val running = AtomicBoolean(false)
     private val tunWriteLock = Any()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                // Explicit user stop disables auto-revive until the user turns it back on.
+                PresetRepository.setAutoVpnEnabled(this, false)
                 stopVpn()
                 stopSelf()
                 return START_NOT_STICKY
             }
             else -> {
                 val targetPkg = intent?.getStringExtra(EXTRA_TARGET_PACKAGE)
+                    ?.takeIf { it.isNotBlank() }
+                    ?: PresetRepository.getVpnTargetPackage(this).takeIf { it.isNotBlank() }
                     ?: RuleRepository.loadBundledRules(this).targetPackage
+                PresetRepository.setAutoVpnEnabled(this, true)
+                PresetRepository.setVpnTargetPackage(this, targetPkg)
                 startVpn(targetPkg)
                 return START_STICKY
             }
@@ -59,7 +72,10 @@ class AdBlockVpnService : VpnService() {
     }
 
     private fun startVpn(targetPackage: String) {
-        if (running.get() && vpnInterface != null) return
+        if (running.get() && vpnInterface != null) {
+            VpnStatsStore.setRunning(true, targetPackage, null)
+            return
+        }
         running.set(true)
 
         val rules = RuleRepository.loadBundledRules(this)
@@ -85,6 +101,12 @@ class AdBlockVpnService : VpnService() {
             .addDnsServer(VPN_DNS_IP)
             .addRoute(VPN_DNS_IP, 32)
 
+        // Capture direct-IP HTTPDNS / DoH bypasses (e.g. http://119.29.29.29/d?dn=...)
+        // scoped strictly to targetPackage (+self); our own upstream DNS sockets call protect().
+        for (bypassIp in DIRECT_HTTPDNS_BLOCK_IPS) {
+            builder.addRoute(bypassIp, 32)
+        }
+
         try {
             builder.addAllowedApplication(targetPackage)
             // Also include self so DiagnosticsEngine probes traverse the real local TUN end-to-end;
@@ -92,8 +114,9 @@ class AdBlockVpnService : VpnService() {
             if (targetPackage != packageName) {
                 builder.addAllowedApplication(packageName)
             }
-        } catch (e: PackageManager.NameNotFoundException) {
+        } catch (_: PackageManager.NameNotFoundException) {
             running.set(false)
+            tunnelActive.set(false)
             VpnStatsStore.setRunning(false, targetPackage, "未安装目标应用: $targetPackage")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -103,17 +126,21 @@ class AdBlockVpnService : VpnService() {
         val tun = builder.establish()
         if (tun == null) {
             running.set(false)
-            VpnStatsStore.setRunning(false, targetPackage, "VPN 权限未授予或被系统占用")
+            tunnelActive.set(false)
+            VpnStatsStore.setRunning(false, targetPackage, "VPN 权限未授予或被其他 VPN 占用")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
         }
 
         vpnInterface = tun
+        tunnelActive.set(true)
+        registerUnderlyingNetworkMonitor()
+
         val pool = Executors.newFixedThreadPool(4)
         workerPool = pool
         VpnStatsStore.setRunning(true, targetPackage, null)
-        Log.i(TAG, "Per-App local DNS VPN established for $targetPackage (+self probe)")
+        Log.i(TAG, "Per-App local DNS + direct-HTTPDNS VPN established for $targetPackage")
 
         val tunOut = FileOutputStream(tun.fileDescriptor)
         val tunIn = FileInputStream(tun.fileDescriptor)
@@ -129,21 +156,39 @@ class AdBlockVpnService : VpnService() {
                         continue
                     }
                     val packetCopy = buf.copyOf(len)
-                    val query = DnsPacketCodec.parseIpv4UdpDnsQuery(packetCopy, len) ?: continue
 
-                    if (matcher.shouldBlock(query.domainName)) {
-                        Log.d(TAG, "BLOCK ${query.domainName}")
-                        val nxResp = DnsPacketCodec.buildNxdomainResponsePacket(query)
-                        writeToTun(tunOut, nxResp)
-                        VpnStatsStore.recordBlocked(query.domainName)
-                    } else {
-                        Log.d(TAG, "ALLOW ${query.domainName}")
-                        pool.execute {
-                            val upstreamResp = forwardDnsUpstream(query.dnsPayload)
-                            if (upstreamResp != null && running.get()) {
-                                val wrapped = DnsPacketCodec.wrapDnsResponseInIpv4Udp(query, upstreamResp)
-                                writeToTun(tunOut, wrapped)
-                                VpnStatsStore.recordAllowed()
+                    // Path 1: UDP/53 DNS query (to virtual 10.120.0.2 or direct public DNS IP)
+                    val query = DnsPacketCodec.parseIpv4UdpDnsQuery(packetCopy, len)
+                    if (query != null) {
+                        if (matcher.shouldBlock(query.domainName)) {
+                            Log.d(TAG, "BLOCK ${query.domainName}")
+                            val nxResp = DnsPacketCodec.buildNxdomainResponsePacket(query)
+                            writeToTun(tunOut, nxResp)
+                            VpnStatsStore.recordBlocked(query.domainName)
+                        } else {
+                            Log.d(TAG, "ALLOW ${query.domainName}")
+                            pool.execute {
+                                val upstreamResp = forwardDnsUpstream(query.dnsPayload)
+                                if (upstreamResp != null && running.get()) {
+                                    val wrapped = DnsPacketCodec.wrapDnsResponseInIpv4Udp(query, upstreamResp)
+                                    writeToTun(tunOut, wrapped)
+                                    VpnStatsStore.recordAllowed()
+                                }
+                            }
+                        }
+                        continue
+                    }
+
+                    // Path 2: Direct-IP HTTPDNS / DoH TCP bypass (e.g. 119.29.29.29:80) -> instant TCP RST
+                    val tcp = DnsPacketCodec.parseIpv4TcpPacket(packetCopy, len)
+                    if (tcp != null) {
+                        val rst = DnsPacketCodec.buildTcpRstResponsePacket(tcp)
+                        if (rst != null) {
+                            writeToTun(tunOut, rst)
+                            if (tcp.isSyn && !tcp.isAck) {
+                                val label = "HTTPDNS ${tcp.dstIpText}:${tcp.dstPort}"
+                                Log.d(TAG, "BLOCK $label")
+                                VpnStatsStore.recordBlocked(label)
                             }
                         }
                     }
@@ -160,6 +205,41 @@ class AdBlockVpnService : VpnService() {
         }, "CampusQuick-DnsLoop").apply {
             isDaemon = true
             start()
+        }
+    }
+
+    private fun registerUnderlyingNetworkMonitor() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        try {
+            setUnderlyingNetworks(null)
+            val cb = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    try {
+                        setUnderlyingNetworks(null)
+                    } catch (_: Exception) {
+                    }
+                }
+
+                override fun onLost(network: Network) {
+                    try {
+                        setUnderlyingNetworks(null)
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+            cm.registerDefaultNetworkCallback(cb)
+            networkCallback = cb
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun unregisterUnderlyingNetworkMonitor() {
+        val cb = networkCallback ?: return
+        networkCallback = null
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        try {
+            cm.unregisterNetworkCallback(cb)
+        } catch (_: Exception) {
         }
     }
 
@@ -199,6 +279,8 @@ class AdBlockVpnService : VpnService() {
 
     private fun stopVpn() {
         running.set(false)
+        tunnelActive.set(false)
+        unregisterUnderlyingNetworkMonitor()
         workerPool?.shutdownNow()
         workerPool = null
         try {
@@ -213,6 +295,7 @@ class AdBlockVpnService : VpnService() {
     }
 
     override fun onRevoke() {
+        // Keep auto-protect preference intact so CampusQuick seamlessly restores once ClashMeta exits.
         stopVpn()
         stopSelf()
         super.onRevoke()
@@ -231,7 +314,7 @@ class AdBlockVpnService : VpnService() {
                 "本地去广告引擎",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "仅对目标校园 App 的广告域名执行本地 DNS 过滤，不经过外部服务器"
+                description = "仅对目标校园 App 的广告 DNS 与直连 HTTPDNS 执行本地过滤，不经过外部服务器"
                 setShowBadge(false)
             }
             nm.createNotificationChannel(ch)
@@ -259,7 +342,7 @@ class AdBlockVpnService : VpnService() {
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_tile_unlock)
             .setContentTitle("CampusQuick 本地去广告运行中")
-            .setContentText("仅接管 $targetPackage 广告 DNS，零外部代理")
+            .setContentText("仅接管 $targetPackage 广告 DNS 与直连 HTTPDNS · 零外部代理")
             .setOngoing(true)
             .setContentIntent(openPi)
             .addAction(
@@ -276,10 +359,28 @@ class AdBlockVpnService : VpnService() {
         private const val TAG = "CampusQuickVPN"
         private const val VPN_CLIENT_IP = "10.120.0.1"
         private const val VPN_DNS_IP = "10.120.0.2"
-        private const val UPSTREAM_TIMEOUT_MS = 2500
-        private val UPSTREAM_DNS_SERVERS = listOf("223.5.5.5", "119.29.29.29")
+        private const val UPSTREAM_TIMEOUT_MS = 1500
+        private val UPSTREAM_DNS_SERVERS = listOf("223.5.5.5", "119.29.29.29", "223.6.6.6")
+
+        // Known public / ad-SDK direct-IP HTTPDNS & DoH resolvers captured or used by ad SDKs.
+        // Note: Alibaba MTOP httpdns.alicdn.com (203.107.1.x) is deliberately NOT in this list.
+        private val DIRECT_HTTPDNS_BLOCK_IPS = listOf(
+            "119.29.29.29",
+            "119.28.28.28",
+            "180.76.76.76",
+            "120.53.53.53",
+            "1.12.12.12",
+            "223.5.5.5",
+            "223.6.6.6",
+            "114.114.114.114",
+            "114.114.115.115"
+        )
 
         private const val CHANNEL_ID = "campusquick_local_vpn"
         private const val NOTIFICATION_ID = 2001
+
+        private val tunnelActive = AtomicBoolean(false)
+
+        fun isTunnelActive(): Boolean = tunnelActive.get()
     }
 }

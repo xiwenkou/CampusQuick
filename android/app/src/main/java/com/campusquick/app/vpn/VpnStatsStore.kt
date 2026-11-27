@@ -28,6 +28,8 @@ object VpnStatsStore {
     private val _state = MutableStateFlow(VpnRuntimeSnapshot())
     val state: StateFlow<VpnRuntimeSnapshot> = _state.asStateFlow()
 
+    private val readyMonitor = Object()
+
     fun setRunning(running: Boolean, targetPackage: String, error: String? = null) {
         synchronized(recentLock) {
             _state.value = _state.value.copy(
@@ -36,6 +38,33 @@ object VpnStatsStore {
                 lastError = error
             )
         }
+        if (running) {
+            synchronized(readyMonitor) {
+                readyMonitor.notifyAll()
+            }
+        }
+    }
+
+    /**
+     * Blocks up to [timeoutMs] until the local VPN TUN interface becomes active.
+     * Used by LaunchProxyActivity during auto-revive so target app never races ahead of tun0.
+     */
+    fun awaitTunnelReady(timeoutMs: Long): Boolean {
+        if (_state.value.running) return true
+        val deadline = System.currentTimeMillis() + timeoutMs
+        synchronized(readyMonitor) {
+            while (!_state.value.running) {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining <= 0L) break
+                try {
+                    readyMonitor.wait(remaining)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
+            }
+        }
+        return _state.value.running
     }
 
     fun recordBlocked(domain: String) {
