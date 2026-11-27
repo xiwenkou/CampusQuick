@@ -159,4 +159,95 @@ class DnsPacketCodecTest {
         assertNotNull(rstParsed)
         assertNull(DnsPacketCodec.buildTcpRstResponsePacket(rstParsed!!))
     }
+
+    @Test
+    fun parsesQuicUdp443AndSynthesizesValidIcmpPortUnreachable() {
+        // Build 48-byte IPv4/UDP packet from 10.120.0.1:41234 -> 120.241.200.244:443 (GDT QUIC)
+        val udp = ByteArray(48)
+        udp[0] = 0x45.toByte()
+        udp[2] = 0; udp[3] = 48
+        udp[4] = 0x22; udp[5] = 0x33
+        udp[8] = 64
+        udp[9] = 17 // UDP
+        udp[12] = 10; udp[13] = 120; udp[14] = 0; udp[15] = 1
+        udp[16] = 120; udp[17] = 241.toByte(); udp[18] = 200.toByte(); udp[19] = 244.toByte()
+        val ipSum = DnsPacketCodec.computeChecksum(udp, 0, 20)
+        udp[10] = ((ipSum ushr 8) and 0xFF).toByte()
+        udp[11] = (ipSum and 0xFF).toByte()
+        // srcPort=41234, dstPort=443, udpLen=28
+        udp[20] = ((41234 ushr 8) and 0xFF).toByte()
+        udp[21] = (41234 and 0xFF).toByte()
+        udp[22] = ((443 ushr 8) and 0xFF).toByte()
+        udp[23] = (443 and 0xFF).toByte()
+        udp[24] = 0; udp[25] = 28
+
+        val parsed = DnsPacketCodec.parseIpv4UdpPacket(udp)
+        assertNotNull(parsed)
+        parsed!!
+        assertEquals("120.241.200.244", parsed.dstIpText)
+        assertEquals(443, parsed.dstPort)
+
+        val icmp = DnsPacketCodec.buildIcmpPortUnreachablePacket(udp)
+        assertNotNull(icmp)
+        icmp!!
+        // 20 (IPv4) + 8 (ICMP) + 28 (quoted IPv4+UDP header) = 56 bytes
+        assertEquals(56, icmp.size)
+        // IPv4 protocol = ICMP (1), header checksum validates to 0
+        assertEquals(1, icmp[9].toInt() and 0xFF)
+        assertEquals(0, DnsPacketCodec.computeChecksum(icmp, 0, 20))
+        // Swapped src <-> dst IP (120.241.200.244 -> 10.120.0.1)
+        assertEquals(120, icmp[12].toInt() and 0xFF)
+        assertEquals(244, icmp[15].toInt() and 0xFF)
+        assertEquals(10, icmp[16].toInt() and 0xFF)
+        assertEquals(1, icmp[19].toInt() and 0xFF)
+        // ICMP Type 3 (Destination Unreachable), Code 3 (Port Unreachable), ICMP checksum validates to 0
+        assertEquals(3, icmp[20].toInt() and 0xFF)
+        assertEquals(3, icmp[21].toInt() and 0xFF)
+        assertEquals(0, DnsPacketCodec.computeChecksum(icmp, 20, 36))
+
+        // Must never reply ICMP to ICMP (prevents ICMP error loops)
+        assertNull(DnsPacketCodec.buildIcmpPortUnreachablePacket(icmp))
+    }
+
+    @Test
+    fun buildsSimpleDnsAQueryAndParsesCompressedARecordResponse() {
+        val query = DnsPacketCodec.buildSimpleDnsAQuery("v2mi.gdt.qq.com", 0x55AA)
+        assertNotNull(query)
+        query!!
+        assertEquals(0x55, query[0].toInt() and 0xFF)
+        assertEquals(0xAA, query[1].toInt() and 0xFF)
+
+        // Build DNS response mirroring the question + 1 CNAME + 2 A records (112.53.5.61, 120.241.200.244)
+        val resp = ByteArrayOutputStream().apply {
+            write(query)
+            // CNAME answer using pointer 0xC0 0x0C -> dummy target 0x01 'a' 0x00
+            write(0xC0); write(0x0C)
+            write(0x00); write(0x05) // TYPE=CNAME
+            write(0x00); write(0x01) // CLASS=IN
+            write(0x00); write(0x00); write(0x00); write(0x3C) // TTL=60
+            write(0x00); write(0x03) // RDLEN=3
+            write(0x01); write('a'.code); write(0x00)
+            // A record #1: 112.53.5.61
+            write(0xC0); write(0x0C)
+            write(0x00); write(0x01) // TYPE=A
+            write(0x00); write(0x01) // CLASS=IN
+            write(0x00); write(0x00); write(0x00); write(0x3C)
+            write(0x00); write(0x04) // RDLEN=4
+            write(112); write(53); write(5); write(61)
+            // A record #2: 120.241.200.244
+            write(0xC0); write(0x0C)
+            write(0x00); write(0x01)
+            write(0x00); write(0x01)
+            write(0x00); write(0x00); write(0x00); write(0x3C)
+            write(0x00); write(0x04)
+            write(120); write(241); write(200); write(244)
+        }.toByteArray()
+        // Mark response QR=1, ANCOUNT=3
+        resp[2] = 0x81.toByte()
+        resp[3] = 0x80.toByte()
+        resp[6] = 0x00; resp[7] = 0x03
+
+        val ips = DnsPacketCodec.parseDnsARecordIps(resp)
+        assertEquals(listOf("112.53.5.61", "120.241.200.244"), ips)
+    }
 }

@@ -10,6 +10,7 @@
         "ulog-sdk.ksapisrv.com",
         "union.eff.qq.com",
         "tdid.m.qq.com",
+        "gdt.dot.pub",
         "mobads.baidu.com",
         "mobads-logs.baidu.com",
         "nadvideo2.baidu.com",
@@ -65,7 +66,9 @@
         "ubixioe.com",
         "66mobi.com",
         "adbiding.cn",
-        "sigmob.cn"
+        "sigmob.cn",
+        "fyeds3.com",
+        "songzhaopian.com"
       ],
       "domain_keyword": [
         "pangolin-sdk-toutiao",
@@ -101,9 +104,14 @@
             "httpdns.bcelive.com",
             "sdkoptedge.chinanetcenter.com",
             "doh.pub",
+            "dot.pub",
             "dns.alidns.com",
+            "httpdns.volcengineapi.com",
+            "dig.bdurl.net",
             "qzs.qq.com",
             "gtimg.cn",
+            "idqqimg.com",
+            "qpic.cn",
             "bdstatic.com",
             "bcebos.com"
           ]

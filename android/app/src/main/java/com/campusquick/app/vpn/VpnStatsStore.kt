@@ -13,6 +13,7 @@ data class VpnRuntimeSnapshot(
     val targetPackage: String = "com.tmall.campus.and",
     val blockedCount: Long = 0L,
     val allowedCount: Long = 0L,
+    val sinkholeIpCount: Int = 0,
     val recentBlocked: List<String> = emptyList(),
     val lastError: String? = null
 )
@@ -79,6 +80,12 @@ object VpnStatsStore {
                 blockedCount = count,
                 recentBlocked = recentQueue.toList()
             )
+        }
+    }
+
+    fun setSinkholeIpCount(count: Int) {
+        synchronized(recentLock) {
+            _state.value = _state.value.copy(sinkholeIpCount = count)
         }
     }
 

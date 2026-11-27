@@ -3,9 +3,9 @@
 # Target: com.tmall.campus.and (天猫校园)
 # Verified on live Android 14 device (cold launch 402/402 ad requests rejected)
 # ==============================================================================
-version: "2.2.0"
+version: "2.3.0"
 target_package: "com.tmall.campus.and"
-description: "Non-invasive ad-SDK domain blocking rules for Tmall Campus (primary + IDC fallback + HTTPDNS/DoH bypass prevention + process-scoped isolation)."
+description: "Non-invasive ad-SDK domain blocking rules for Tmall Campus (primary + IDC fallback + GDT/Pangle HTTPDNS/DoH/DoT bypass prevention + process-scoped isolation)."
 
 # Pure ad-SDK suffixes: safe to block globally without affecting normal apps
 pure_ad_domains:
@@ -49,6 +49,8 @@ pure_ad_domains:
   - 66mobi.com
   - adbiding.cn
   - sigmob.cn
+  - fyeds3.com
+  - songzhaopian.com
 
 # Pure ad-SDK keywords: catches numbered fallbacks (e.g. pangolin-sdk-toutiao1.com)
 pure_ad_keywords:
@@ -64,6 +66,7 @@ pure_ad_exact:
   - ulog-sdk.ksapisrv.com
   - union.eff.qq.com
   - tdid.m.qq.com
+  - gdt.dot.pub
   - mobads.baidu.com
   - mobads-logs.baidu.com
   - nadvideo2.baidu.com
@@ -104,14 +107,19 @@ process_scoped_domains:
   - kwimgs.com
   - gifshow.com
   - ksapisrv.com
-  # Ad-SDK HTTPDNS & DoH bypass prevention (scoped to target app only)
+  # Ad-SDK HTTPDNS, DoH & DoT bypass prevention (scoped to target app only)
   - httpdns.bcelive.com
   - sdkoptedge.chinanetcenter.com
   - doh.pub
+  - dot.pub
   - dns.alidns.com
+  - httpdns.volcengineapi.com
+  - dig.bdurl.net
   # GDT / Baidu MobAds creative CDNs (scoped to target app only)
   - qzs.qq.com
   - gtimg.cn
+  - idqqimg.com
+  - qpic.cn
   - bdstatic.com
   - bcebos.com
 
@@ -142,4 +150,7 @@ consumer_apps_guard:
   - www.baidu.com
   - wx.qq.com
   - doh.pub
+  - dot.pub
   - dns.alidns.com
+  - p.qpic.cn
+  - pub.idqqimg.com

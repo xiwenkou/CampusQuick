@@ -14,6 +14,7 @@ object PresetRepository {
     private const val KEY_BLE_PREFIX = "ble_name_prefix"
     private const val KEY_VPN_AUTO_PROTECT = "vpn_auto_protect_enabled"
     private const val KEY_VPN_TARGET_PACKAGE = "vpn_target_package"
+    private const val KEY_CACHED_AD_SINKHOLE_IPS = "cached_ad_sinkhole_ips"
 
     fun parsePresetsJson(jsonText: String, userCustom: Boolean = false): List<RoutePreset> {
         val root = JSONObject(jsonText)
@@ -138,6 +139,19 @@ object PresetRepository {
     fun setVpnTargetPackage(context: Context, targetPackage: String) {
         if (targetPackage.isBlank()) return
         prefs(context).edit().putString(KEY_VPN_TARGET_PACKAGE, targetPackage.trim()).apply()
+    }
+
+    fun getCachedAdSinkholeIps(context: Context): Set<String> {
+        val raw = prefs(context).getString(KEY_CACHED_AD_SINKHOLE_IPS, null) ?: return emptySet()
+        return raw.split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toCollection(LinkedHashSet())
+    }
+
+    fun setCachedAdSinkholeIps(context: Context, ips: Set<String>) {
+        val serialized = ips.sorted().joinToString(",")
+        prefs(context).edit().putString(KEY_CACHED_AD_SINKHOLE_IPS, serialized).apply()
     }
 
     private fun prefs(context: Context) =

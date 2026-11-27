@@ -1,5 +1,5 @@
-# CampusQuick Rule-Provider Payload v2.2.0 (behavior: classical)
-# Target: com.tmall.campus.and | Total entries: 86
+# CampusQuick Rule-Provider Payload v2.3.0 (behavior: classical)
+# Target: com.tmall.campus.and | Total entries: 94
 # Use with: rule-providers -> behavior: classical, format: yaml
 # Then add at top of rules: - RULE-SET,campus-adblock,REJECT
 
@@ -38,6 +38,8 @@ payload:
   - 'DOMAIN-SUFFIX,66mobi.com'
   - 'DOMAIN-SUFFIX,adbiding.cn'
   - 'DOMAIN-SUFFIX,sigmob.cn'
+  - 'DOMAIN-SUFFIX,fyeds3.com'
+  - 'DOMAIN-SUFFIX,songzhaopian.com'
   - 'DOMAIN-KEYWORD,pangolin-sdk-toutiao'
   - 'DOMAIN-KEYWORD,pglstatp-toutiao'
   - 'DOMAIN,log.zijieapi.com'
@@ -47,6 +49,7 @@ payload:
   - 'DOMAIN,ulog-sdk.ksapisrv.com'
   - 'DOMAIN,union.eff.qq.com'
   - 'DOMAIN,tdid.m.qq.com'
+  - 'DOMAIN,gdt.dot.pub'
   - 'DOMAIN,mobads.baidu.com'
   - 'DOMAIN,mobads-logs.baidu.com'
   - 'DOMAIN,nadvideo2.baidu.com'
@@ -85,8 +88,13 @@ payload:
   - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,httpdns.bcelive.com))'
   - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,sdkoptedge.chinanetcenter.com))'
   - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,doh.pub))'
+  - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,dot.pub))'
   - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,dns.alidns.com))'
+  - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,httpdns.volcengineapi.com))'
+  - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,dig.bdurl.net))'
   - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,qzs.qq.com))'
   - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,gtimg.cn))'
+  - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,idqqimg.com))'
+  - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,qpic.cn))'
   - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,bdstatic.com))'
   - 'AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,bcebos.com))'

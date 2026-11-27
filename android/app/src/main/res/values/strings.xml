@@ -7,4 +7,6 @@
     <string name="btn_switch_preset">切换预设</string>
     <string name="btn_add_preset">新增自定义</string>
     <string name="btn_pin_shortcut">固定到桌面</string>
+    <string name="accessibility_service_label">CampusQuick 广告自动跳过（仅限天猫校园）</string>
+    <string name="accessibility_service_desc">仅在天猫校园（com.tmall.campus.and）前台运行时检测开屏/运营弹窗的「跳过」或「关闭」按钮并自动点击，不监听任何其他应用、不读取个人数据、不联网上传。</string>
 </resources>

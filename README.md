@@ -11,8 +11,8 @@
 
 1. 前往 [**Releases 页面**](https://github.com/xiwenkou/CampusQuick/releases/latest) 下载最新版 `CampusQuick-v*-release.apk`（约 1.7 MB，支持 Android 8.0–15）。
 2. 选择适合你的去广告方式：
-   - **已在用 ClashMeta / Mihomo / Sing-box**：打开 App 点「一键复制 86 条进程隔离规则」粘到 `rules:` 顶部，或按 [代理配置指南](docs/CLASH_GUIDE.md) 订阅本仓库远程规则集（更新机场订阅不丢失）。
-   - **平时不用代理软件**：直接打开 App 内「内置 Per-App 本地去广告 VPN」开关（*已通过 Android 14 真机实测：空闲 `0.0%` CPU、单次冷启拦截 442+ 次广告请求、5/5 环境体检全绿、零外部代理*）。
+   - **已在用 ClashMeta / Mihomo / Sing-box**：打开 App 点「一键复制 94 条进程隔离规则」粘到 `rules:` 顶部，或按 [代理配置指南](docs/CLASH_GUIDE.md) 订阅本仓库远程规则集（更新机场订阅不丢失）。
+   - **平时不用代理软件**：直接打开 App 内「内置 Per-App 本地去广告 VPN」开关（*已通过 Android 14 真机实测：空闲 `0.0%` CPU、单次冷启拦截 600+ 次广告请求（含直连 HTTPDNS 与 GDT QUIC 节点）、5/5 环境体检全绿、零外部代理*）；建议首次开启后点一次 **「清理残留广告缓存」** 清空此前预下载的离线开屏素材，并按需开启 **「兜底自动跳过（无障碍 · 仅限天猫校园）」** 秒跳过自营运营开屏与弹窗。
 3. 点「固定到桌面」或下拉控制中心添加 **「一键开锁」** 磁贴，并点击底部按钮将目标 App 加入系统电池优化白名单，日常热启动 **~0.38 秒**直达门锁页。
 
 ## 为什么做这个项目？
@@ -71,9 +71,10 @@ flowchart LR
 ## 核心特性
 
 - **四入口直达 + 路由配置化**：支持桌面图标、2×1 桌面微件、控制中心快捷磁贴（Android 14 `PendingIntent` + 锁屏 `unlockAndRun`）、门框 NFC 贴纸（内置 NDEF 写卡器），以及自定义校园 DeepLink 预设。
-- **双模精准去广告**：
-  - **无代理用户（内置 Per-App 本地 DNS + 直连 HTTPDNS 过滤 VPN）**：利用 `VpnService.Builder.addAllowedApplication()` **仅接管目标 App**，路由虚拟 DNS `10.120.0.2/32` 与常见广告直连 HTTPDNS IP（如 `119.29.29.29/32`），广告域名 < 1ms 返回本地 `NXDOMAIN`、直连 HTTPDNS TCP 请求 < 1ms 返回 `TCP RST`，业务 HTTPS 流量完全不走 TUN；同时内置**最近任务防误杀隐藏、切网自动刷新、开机自恢复与点击一键开锁自动拉活（~50ms 建隧后再拉起目标 App）**，彻底解决国产 ROM 后台强杀导致的时灵时不灵。
-  - **代理用户（ClashMeta / Sing-box / AdGuard）**：由单源 YAML 自动编译 6 种格式，对抖音/快手等共享媒体域启用 `PROCESS-NAME` 进程级隔离，不误伤本机正常 App。
+- **双模精准去广告 + 兜底跳过**：
+  - **无代理用户（内置 Per-App 本地 DNS + 直连 HTTPDNS + 动态广告 QUIC 黑洞 VPN）**：利用 `VpnService.Builder.addAllowedApplication()` **仅接管目标 App**，路由虚拟 DNS `10.120.0.2/32`、16 组直连 HTTPDNS/DoH/DoT IP（覆盖腾讯优量汇 `yaq3_0.sec` 企业容灾节点 `119.29.29.98/99`、`119.28.28.98/99` 与 `gdt.dot.pub` `1.12.34.56`），以及**带业务白名单 IP 碰撞保护的动态广告直连/QUIC 节点 IP**（如 `v2mi/v3/c3.gdt.qq.com` UDP/443）；广告域名 < 1ms 返回 `NXDOMAIN`、直连 TCP < 1ms 返回 `TCP RST+ACK`、直连 QUIC UDP < 1ms 返回 RFC 792 `ICMP Port Unreachable`，业务 HTTPS 流量完全不走 TUN；并内置**最近任务防误杀隐藏、始终开启 VPN 快捷入口、切网自动刷新、开机自恢复与点击一键开锁自动拉活（~50ms 建隧）**。
+  - **可选目标限域无障碍兜底跳过**：严格声明 `android:packageNames="com.tmall.campus.and"`，仅在天猫校园前台出现自营运营开屏（`id/cl_skip`）、弹窗（`id/iv_close_ad`）或历史离线缓存开屏时毫秒级点击跳过，默认关闭、绝不监听其他应用。
+  - **代理用户（ClashMeta / Sing-box / AdGuard）**：由单源 YAML 自动编译 6 种格式，对抖音/快手/DoH/DoT 等共享域启用 `PROCESS-NAME` 进程级隔离，不误伤本机正常 App。
 - **BLE 近场防呆**：扫描门锁前缀信号强度（默认 `MVL`，可自定义，无个人 MAC 硬编码），到门前 1 米内提示绿灯可秒开，规避 31 秒蓝牙重连超时。
 - **5 项实时环境体检**：内置广告域实时连通性探针、DeepLink 可达性、Doze 电池白名单、蓝牙/定位状态、VPN 冲突自动识别。
 
@@ -136,6 +137,7 @@ cd android
 - `INTERNET` / `ACCESS_NETWORK_STATE`：仅用于 Per-App 本地 VPN 放行业务 DNS 查询与自检探针；
 - `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_SPECIAL_USE` / `POST_NOTIFICATIONS`：仅在用户主动开启本地去广告 VPN 时保持前台运行；
 - `RECEIVE_BOOT_COMPLETED` / `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`：可选，用于重启后自动恢复已开启的本地 VPN 并一键加入电池优化白名单，防止系统后台强杀；
+- `BIND_ACCESSIBILITY_SERVICE`（`android:packageNames="com.tmall.campus.and"`）：默认关闭、完全可选，且通过系统级包名白名单严格限定仅接收天猫校园窗口事件，仅用于点击开屏「跳过」或运营弹窗关闭按钮；
 - `NFC`：可选，用于写入/触发门框 NFC 贴纸；
 - `BLUETOOTH_SCAN`（声明 `neverForLocation`）/ `BLUETOOTH_CONNECT`：可选，用于门锁近场测距防呆，Android 12+ 无需定位权限。
 

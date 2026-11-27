@@ -1,5 +1,5 @@
 ! Title: CampusQuick Ad-Block Filter (Tmall Campus)
-! Version: 2.2.0
+! Version: 2.3.0
 ! Scope: Pure ad-SDK domains only (safe for global DNS filtering)
 
 ||anythinktech.com^
@@ -36,6 +36,8 @@
 ||66mobi.com^
 ||adbiding.cn^
 ||sigmob.cn^
+||fyeds3.com^
+||songzhaopian.com^
 ||log.zijieapi.com^
 ||g-api.kwai.com^
 ||ulog-sdk.gifshow.com^
@@ -43,6 +45,7 @@
 ||ulog-sdk.ksapisrv.com^
 ||union.eff.qq.com^
 ||tdid.m.qq.com^
+||gdt.dot.pub^
 ||mobads.baidu.com^
 ||mobads-logs.baidu.com^
 ||nadvideo2.baidu.com^

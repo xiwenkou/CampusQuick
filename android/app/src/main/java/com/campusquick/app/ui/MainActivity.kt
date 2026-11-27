@@ -26,6 +26,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.campusquick.app.R
+import com.campusquick.app.accessibility.AdSkipAccessibilityService
 import com.campusquick.app.core.BleProximityMonitor
 import com.campusquick.app.core.CheckLevel
 import com.campusquick.app.core.DiagnosticItem
@@ -116,6 +117,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateRecentsExclusion(AdBlockVpnService.isTunnelActive())
+        refreshAccessibilityStatus()
     }
 
     override fun onPause() {
@@ -171,6 +173,18 @@ class MainActivity : AppCompatActivity() {
                 "已复制 v${rules.version} 进程隔离规则到剪贴板，请粘贴至 ClashMeta rules 顶部",
                 Toast.LENGTH_LONG
             ).show()
+        }
+
+        binding.btnClearTargetCache.setOnClickListener {
+            showClearCacheGuideDialog()
+        }
+
+        binding.btnAlwaysOnVpn.setOnClickListener {
+            openAlwaysOnVpnSettings()
+        }
+
+        binding.btnOpenAccessibility.setOnClickListener {
+            openAccessibilitySettings()
         }
 
         binding.btnWriteNfc.setOnClickListener {
@@ -278,7 +292,14 @@ class MainActivity : AppCompatActivity() {
                 updateRecentsExclusion(snap.running)
                 binding.tvVpnStatus.text = when {
                     snap.lastError != null -> "状态：${snap.lastError}"
-                    snap.running -> "状态：运行中（防误杀自动保护已开启 · 仅接管 ${snap.targetPackage}）"
+                    snap.running -> {
+                        val ipInfo = if (snap.sinkholeIpCount > 0) {
+                            " · 已封堵 ${snap.sinkholeIpCount} 个 HTTPDNS/QUIC 直连 IP"
+                        } else {
+                            ""
+                        }
+                        "状态：运行中（防误杀自动保护已开启$ipInfo · 仅接管 ${snap.targetPackage}）"
+                    }
                     PresetRepository.isAutoVpnEnabled(this@MainActivity) ->
                         "状态：待机自恢复中（点击一键开锁时将自动拉活本地去广告 VPN）"
                     else -> "状态：未启动（若已在用 ClashMeta 规则则无需开启本开关）"
@@ -483,6 +504,74 @@ class MainActivity : AppCompatActivity() {
                 data = Uri.parse("package:${currentPreset.targetPackage}")
             }
             startActivity(fallback)
+        }
+    }
+
+    private fun refreshAccessibilityStatus() {
+        val enabled = AdSkipAccessibilityService.isServiceEnabled(this)
+        val skipped = AdSkipAccessibilityService.getSkippedCount()
+        if (enabled) {
+            binding.tvSkipStatus.text = if (skipped > 0) {
+                "已开启（仅监听天猫校园 · 本次已自动跳过 $skipped 次开屏/弹窗）"
+            } else {
+                "已开启（仅监听天猫校园 · 如遇离线缓存或自营运营开屏将自动跳过）"
+            }
+            binding.tvSkipStatus.setTextColor(ContextCompat.getColor(this, R.color.status_pass))
+            binding.btnOpenAccessibility.text = "管理"
+        } else {
+            binding.tvSkipStatus.text = "未开启（可选 · 可毫秒级跳过离线缓存与自营运营开屏/弹窗）"
+            binding.tvSkipStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+            binding.btnOpenAccessibility.text = "去开启"
+        }
+    }
+
+    private fun showClearCacheGuideDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("清理目标 App 残留离线广告缓存")
+            .setMessage(
+                "腾讯优量汇 / 快手 / TopOn 会将以前下载的开屏视频与图片长期缓存在本地目录，即使已拦截全部广告域名，仍可能离线播放旧素材。\n\n" +
+                    "操作步骤（不会丢失登录态）：\n" +
+                    "1. 点击下方按钮进入「${currentPreset.targetPackage}」应用信息\n" +
+                    "2. 进入「存储」→ 点击「清除缓存」\n" +
+                    "⚠ 切勿点击「清除数据」，否则需重新登录账号。"
+            )
+            .setPositiveButton("前往应用信息") { _, _ ->
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${currentPreset.targetPackage}")
+                    }
+                    startActivity(intent)
+                } catch (_: Exception) {
+                    Toast.makeText(this, "无法打开目标应用信息页", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun openAlwaysOnVpnSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
+            Toast.makeText(
+                this,
+                "找到 CampusQuick → 开启「始终开启的 VPN」，可防止系统一键清理杀掉保护（使用 Clash 时请关闭）",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "请在系统设置 → VPN 中开启 CampusQuick 始终开启", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openAccessibilitySettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            Toast.makeText(
+                this,
+                "在「已下载的应用」中找到「CampusQuick 广告自动跳过」并开启（仅限天猫校园）",
+                Toast.LENGTH_LONG
+            ).show()
+        } catch (_: Exception) {
+            Toast.makeText(this, "请在系统设置 → 无障碍中开启 CampusQuick 自动跳过", Toast.LENGTH_LONG).show()
         }
     }
 }

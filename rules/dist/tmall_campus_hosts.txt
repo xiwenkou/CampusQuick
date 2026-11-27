@@ -1,4 +1,4 @@
-# CampusQuick Ad-Block Hosts v2.2.0
+# CampusQuick Ad-Block Hosts v2.3.0
 # Note: standard hosts files do not support wildcards; exact/root entries below.
 0.0.0.0 log.zijieapi.com
 0.0.0.0 g-api.kwai.com
@@ -7,6 +7,7 @@
 0.0.0.0 ulog-sdk.ksapisrv.com
 0.0.0.0 union.eff.qq.com
 0.0.0.0 tdid.m.qq.com
+0.0.0.0 gdt.dot.pub
 0.0.0.0 mobads.baidu.com
 0.0.0.0 mobads-logs.baidu.com
 0.0.0.0 nadvideo2.baidu.com
@@ -61,3 +62,5 @@
 0.0.0.0 66mobi.com
 0.0.0.0 adbiding.cn
 0.0.0.0 sigmob.cn
+0.0.0.0 fyeds3.com
+0.0.0.0 songzhaopian.com

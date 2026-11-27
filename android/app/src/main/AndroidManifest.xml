@@ -113,6 +113,20 @@
                 android:value="local_dns_ad_filter" />
         </service>
 
+        <!-- Optional, strictly target-scoped (com.tmall.campus.and only) Accessibility auto-skipper -->
+        <service
+            android:name=".accessibility.AdSkipAccessibilityService"
+            android:exported="false"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice.accessibilityservice"
+                android:resource="@xml/accessibility_ad_skip_config" />
+        </service>
+
         <!-- Home Screen Quick-Launch Widget -->
         <receiver
             android:name=".entry.QuickUnlockWidgetProvider"

@@ -1,5 +1,5 @@
-// CampusQuick Mihomo / Clash Verge Rev Override Script v2.2.0
-// Prepends 86 ad-block rules for com.tmall.campus.and on every subscription update.
+// CampusQuick Mihomo / Clash Verge Rev Override Script v2.3.0
+// Prepends 94 ad-block rules for com.tmall.campus.and on every subscription update.
 
 const CAMPUS_ADBLOCK_RULES = [
   "DOMAIN-SUFFIX,anythinktech.com,REJECT",
@@ -36,6 +36,8 @@ const CAMPUS_ADBLOCK_RULES = [
   "DOMAIN-SUFFIX,66mobi.com,REJECT",
   "DOMAIN-SUFFIX,adbiding.cn,REJECT",
   "DOMAIN-SUFFIX,sigmob.cn,REJECT",
+  "DOMAIN-SUFFIX,fyeds3.com,REJECT",
+  "DOMAIN-SUFFIX,songzhaopian.com,REJECT",
   "DOMAIN-KEYWORD,pangolin-sdk-toutiao,REJECT",
   "DOMAIN-KEYWORD,pglstatp-toutiao,REJECT",
   "DOMAIN,log.zijieapi.com,REJECT",
@@ -45,6 +47,7 @@ const CAMPUS_ADBLOCK_RULES = [
   "DOMAIN,ulog-sdk.ksapisrv.com,REJECT",
   "DOMAIN,union.eff.qq.com,REJECT",
   "DOMAIN,tdid.m.qq.com,REJECT",
+  "DOMAIN,gdt.dot.pub,REJECT",
   "DOMAIN,mobads.baidu.com,REJECT",
   "DOMAIN,mobads-logs.baidu.com,REJECT",
   "DOMAIN,nadvideo2.baidu.com,REJECT",
@@ -83,9 +86,14 @@ const CAMPUS_ADBLOCK_RULES = [
   "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,httpdns.bcelive.com)),REJECT",
   "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,sdkoptedge.chinanetcenter.com)),REJECT",
   "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,doh.pub)),REJECT",
+  "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,dot.pub)),REJECT",
   "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,dns.alidns.com)),REJECT",
+  "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,httpdns.volcengineapi.com)),REJECT",
+  "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,dig.bdurl.net)),REJECT",
   "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,qzs.qq.com)),REJECT",
   "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,gtimg.cn)),REJECT",
+  "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,idqqimg.com)),REJECT",
+  "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,qpic.cn)),REJECT",
   "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,bdstatic.com)),REJECT",
   "AND,((PROCESS-NAME,com.tmall.campus.and),(DOMAIN-SUFFIX,bcebos.com)),REJECT"
 ];

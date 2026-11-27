@@ -6,10 +6,12 @@ package com.campusquick.app.core
  */
 object DnsPacketCodec {
 
+    private const val IP_PROTOCOL_ICMP = 1
     private const val IP_PROTOCOL_TCP = 6
     private const val IP_PROTOCOL_UDP = 17
     private const val DNS_PORT = 53
     private const val IPV4_HEADER_LEN = 20
+    private const val ICMP_HEADER_LEN = 8
     private const val TCP_HEADER_LEN = 20
     private const val UDP_HEADER_LEN = 8
     private const val DNS_HEADER_LEN = 12
@@ -18,6 +20,18 @@ object DnsPacketCodec {
     private const val TCP_FLAG_SYN = 0x02
     private const val TCP_FLAG_RST = 0x04
     private const val TCP_FLAG_ACK = 0x10
+
+    data class ParsedUdpPacket(
+        val srcIp: ByteArray,
+        val dstIp: ByteArray,
+        val srcPort: Int,
+        val dstPort: Int,
+        val ihl: Int
+    ) {
+        val dstIpText: String
+            get() = "${dstIp[0].toInt() and 0xFF}.${dstIp[1].toInt() and 0xFF}." +
+                "${dstIp[2].toInt() and 0xFF}.${dstIp[3].toInt() and 0xFF}"
+    }
 
     data class ParsedTcpPacket(
         val srcIp: ByteArray,
@@ -362,6 +376,169 @@ object DnsPacketCodec {
         )
         writeU16(out, IPV4_HEADER_LEN + 16, tcpChecksum)
         return out
+    }
+
+    /**
+     * Parses any IPv4 UDP packet from TUN (used to detect and instantly reject non-DNS UDP such as
+     * QUIC UDP/443 to cached ad-server IPs like 120.241.200.244:443).
+     */
+    fun parseIpv4UdpPacket(packet: ByteArray, length: Int = packet.size): ParsedUdpPacket? {
+        if (length < IPV4_HEADER_LEN + UDP_HEADER_LEN) return null
+        val version = (packet[0].toInt() ushr 4) and 0x0F
+        if (version != 4) return null
+        val ihl = (packet[0].toInt() and 0x0F) * 4
+        if (ihl < IPV4_HEADER_LEN || length < ihl + UDP_HEADER_LEN) return null
+        val ipTotalLen = readU16(packet, 2)
+        val effectiveLen = minOf(length, ipTotalLen)
+        if (effectiveLen < ihl + UDP_HEADER_LEN) return null
+        val protocol = packet[9].toInt() and 0xFF
+        if (protocol != IP_PROTOCOL_UDP) return null
+
+        return ParsedUdpPacket(
+            srcIp = packet.copyOfRange(12, 16),
+            dstIp = packet.copyOfRange(16, 20),
+            srcPort = readU16(packet, ihl),
+            dstPort = readU16(packet, ihl + 2),
+            ihl = ihl
+        )
+    }
+
+    /**
+     * Synthesizes a valid RFC 792 IPv4/ICMP Type 3 Code 3 (Port Unreachable) response for a
+     * blocked UDP datagram (e.g. QUIC UDP/443), making connected UDP sockets fail with
+     * ECONNREFUSED in < 1 ms instead of stalling on handshake timeouts.
+     */
+    fun buildIcmpPortUnreachablePacket(rawPacket: ByteArray, length: Int = rawPacket.size): ByteArray? {
+        if (length < IPV4_HEADER_LEN + UDP_HEADER_LEN) return null
+        val version = (rawPacket[0].toInt() ushr 4) and 0x0F
+        if (version != 4) return null
+        val ihl = (rawPacket[0].toInt() and 0x0F) * 4
+        if (ihl < IPV4_HEADER_LEN || length < ihl + UDP_HEADER_LEN) return null
+        val protocol = rawPacket[9].toInt() and 0xFF
+        if (protocol == IP_PROTOCOL_ICMP) return null
+
+        val ipTotalLen = readU16(rawPacket, 2)
+        val effectiveLen = minOf(length, ipTotalLen)
+        val quotedLen = minOf(ihl + 8, effectiveLen)
+        if (quotedLen < IPV4_HEADER_LEN + 8) return null
+
+        val icmpLen = ICMP_HEADER_LEN + quotedLen
+        val totalLen = IPV4_HEADER_LEN + icmpLen
+        val out = ByteArray(totalLen)
+
+        // IPv4 header
+        out[0] = 0x45.toByte()
+        out[1] = 0x00
+        writeU16(out, 2, totalLen)
+        out[4] = rawPacket[4]
+        out[5] = rawPacket[5]
+        out[6] = 0x40.toByte() // DF
+        out[7] = 0x00
+        out[8] = 64.toByte() // TTL
+        out[9] = IP_PROTOCOL_ICMP.toByte()
+        out[10] = 0x00
+        out[11] = 0x00
+        // Swap src <-> dst IP
+        System.arraycopy(rawPacket, 16, out, 12, 4)
+        System.arraycopy(rawPacket, 12, out, 16, 4)
+        writeU16(out, 10, computeChecksum(out, 0, IPV4_HEADER_LEN))
+
+        // ICMP header: Type 3 (Dest Unreachable), Code 3 (Port Unreachable)
+        out[IPV4_HEADER_LEN] = 3.toByte()
+        out[IPV4_HEADER_LEN + 1] = 3.toByte()
+        out[IPV4_HEADER_LEN + 2] = 0x00
+        out[IPV4_HEADER_LEN + 3] = 0x00
+        // Unused 4 bytes = 0
+        System.arraycopy(rawPacket, 0, out, IPV4_HEADER_LEN + ICMP_HEADER_LEN, quotedLen)
+        val icmpChecksum = computeChecksum(out, IPV4_HEADER_LEN, icmpLen)
+        writeU16(out, IPV4_HEADER_LEN + 2, icmpChecksum)
+        return out
+    }
+
+    /**
+     * Builds a minimal RFC 1035 standard DNS A-record query payload (UDP/53) for internal
+     * protected resolution of ad-server & business-allowlist IP addresses.
+     */
+    fun buildSimpleDnsAQuery(domain: String, txId: Int): ByteArray? {
+        val cleaned = domain.trim().trimEnd('.').lowercase()
+        if (cleaned.isEmpty()) return null
+        val labels = cleaned.split('.')
+        if (labels.any { it.isEmpty() || it.length > 63 }) return null
+
+        val qnameLen = labels.sumOf { 1 + it.length } + 1
+        val out = ByteArray(DNS_HEADER_LEN + qnameLen + 4)
+        writeU16(out, 0, txId and 0xFFFF)
+        out[2] = 0x01 // RD=1
+        out[3] = 0x00
+        writeU16(out, 4, 1) // QDCOUNT=1
+
+        var pos = DNS_HEADER_LEN
+        for (label in labels) {
+            val bytes = label.toByteArray(Charsets.US_ASCII)
+            out[pos++] = bytes.size.toByte()
+            System.arraycopy(bytes, 0, out, pos, bytes.size)
+            pos += bytes.size
+        }
+        out[pos++] = 0x00
+        writeU16(out, pos, 1) // QTYPE = A
+        writeU16(out, pos + 2, 1) // QCLASS = IN
+        return out
+    }
+
+    /**
+     * Extracts all IPv4 A-record addresses from a raw DNS response payload, safely handling
+     * CNAME records and RFC 1035 name compression pointers.
+     */
+    fun parseDnsARecordIps(dnsResp: ByteArray): List<String> {
+        if (dnsResp.size < DNS_HEADER_LEN) return emptyList()
+        val flags = readU16(dnsResp, 2)
+        // Must be response (QR=1) with NOERROR (RCODE=0)
+        if ((flags and 0x8000) == 0 || (flags and 0x000F) != 0) return emptyList()
+
+        val qdCount = readU16(dnsResp, 4)
+        val anCount = readU16(dnsResp, 6)
+        if (anCount == 0) return emptyList()
+
+        var pos = DNS_HEADER_LEN
+        repeat(qdCount) {
+            pos = skipDnsName(dnsResp, pos)
+            if (pos < 0 || pos + 4 > dnsResp.size) return emptyList()
+            pos += 4
+        }
+
+        val ips = ArrayList<String>(anCount)
+        repeat(anCount) {
+            pos = skipDnsName(dnsResp, pos)
+            if (pos < 0 || pos + 10 > dnsResp.size) return ips
+            val rType = readU16(dnsResp, pos)
+            val rClass = readU16(dnsResp, pos + 2)
+            val rdLen = readU16(dnsResp, pos + 8)
+            pos += 10
+            if (pos + rdLen > dnsResp.size) return ips
+            if (rType == 1 && rClass == 1 && rdLen == 4) {
+                val ip = "${dnsResp[pos].toInt() and 0xFF}." +
+                    "${dnsResp[pos + 1].toInt() and 0xFF}." +
+                    "${dnsResp[pos + 2].toInt() and 0xFF}." +
+                    "${dnsResp[pos + 3].toInt() and 0xFF}"
+                ips.add(ip)
+            }
+            pos += rdLen
+        }
+        return ips
+    }
+
+    private fun skipDnsName(dns: ByteArray, startOffset: Int): Int {
+        var pos = startOffset
+        var guard = 0
+        while (pos < dns.size && guard++ < 128) {
+            val len = dns[pos].toInt() and 0xFF
+            if (len == 0) return pos + 1
+            if ((len and 0xC0) == 0xC0) {
+                return if (pos + 2 <= dns.size) pos + 2 else -1
+            }
+            pos += 1 + len
+        }
+        return -1
     }
 
     internal fun computeTransportChecksum(
